@@ -8,7 +8,7 @@ Drum Performer (tentatively named) is a rhythm game under development that doubl
 
 -Users can customize the appearance of their highway, including the positioning, color, and size of each gem.
 
--When playing a song, the user will hear the correct drum sample at the correct time, regardless of kit size. Suppose a user has three cymbals (hi-hat, crash, ride), but the song the user is playing has a fourth cymbal (splash). The user chooses which of their three cymbals the splash is mapped to, and the game will switch between samples as the user is playing through the song.
+-When playing a song, the user will hear the correct drum sample at the correct time, regardless of kit size. Suppose a user owns three cymbals (hi-hat, crash, ride), but the song the user is playing requires a fourth cymbal (splash). The user chooses which of their three cymbals the splash is mapped to, and the game will switch between samples as the user is playing through the song.
 
 -Musical notation is optionally viewable alongside the highway, in a panorama or page view.
 
