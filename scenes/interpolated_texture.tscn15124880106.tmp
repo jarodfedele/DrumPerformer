@@ -1,0 +1,13 @@
+[gd_scene load_steps=4 format=3 uid="uid://biplc4vxlgtd7"]
+
+[ext_resource type="Script" uid="uid://2g6nc7dsbtfi" path="res://scripts/interpolated_texture.gd" id="1_k0q4j"]
+[ext_resource type="Shader" uid="uid://uqi4g4ayggue" path="res://shaders/interpolated_texture.gdshader" id="1_uqtwa"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_lhaeu"]
+shader = ExtResource("1_uqtwa")
+shader_parameter/alpha_map_height = 0
+
+[node name="InterpolatedTexture" type="Polygon2D"]
+texture_repeat = 2
+material = SubResource("ShaderMaterial_lhaeu")
+script = ExtResource("1_k0q4j")

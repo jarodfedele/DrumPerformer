@@ -1,0 +1,3 @@
+zorder 1
+blend_tint linear_burn
+blend_lighting linear_dodge

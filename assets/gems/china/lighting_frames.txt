@@ -1,0 +1,16 @@
+res://assets/gems/china/lighting0000.png
+res://assets/gems/china/lighting0001.png
+res://assets/gems/china/lighting0002.png
+res://assets/gems/china/lighting0003.png
+res://assets/gems/china/lighting0004.png
+res://assets/gems/china/lighting0005.png
+res://assets/gems/china/lighting0006.png
+res://assets/gems/china/lighting0007.png
+res://assets/gems/china/lighting0008.png
+res://assets/gems/china/lighting0009.png
+res://assets/gems/china/lighting0010.png
+res://assets/gems/china/lighting0011.png
+res://assets/gems/china/lighting0012.png
+res://assets/gems/china/lighting0013.png
+res://assets/gems/china/lighting0014.png
+res://assets/gems/china/lighting0015.png

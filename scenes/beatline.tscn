@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cy2m3g50drm0v"]
+
+[ext_resource type="Script" uid="uid://ct3jxgfvj2l0a" path="res://scripts/beatline.gd" id="1_loh2g"]
+
+[node name="BeatLine" type="Line2D"]
+script = ExtResource("1_loh2g")

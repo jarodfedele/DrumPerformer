@@ -1,0 +1,81 @@
+[gd_scene load_steps=18 format=3 uid="uid://dxq6r1i15jboc"]
+
+[ext_resource type="Script" uid="uid://b24lsnuvjawt1" path="res://scripts/highway.gd" id="1_gee14"]
+[ext_resource type="Script" uid="uid://dljjccap3sv1u" path="res://scripts/highway_border.gd" id="2_0tnpc"]
+[ext_resource type="Shader" uid="uid://bgc2d3kg75655" path="res://shaders/highway_cover.gdshader" id="2_kvpfn"]
+[ext_resource type="Script" uid="uid://b3h3484bs5rkb" path="res://scripts/highway_background.gd" id="2_vtaks"]
+[ext_resource type="Script" uid="uid://c1wg10ctckhvb" path="res://scripts/notes.gd" id="3_kvuet"]
+[ext_resource type="Script" uid="uid://vktnnrq1qmwl" path="res://scripts/waveformButton.gd" id="3_lbhrr"]
+[ext_resource type="Texture2D" uid="uid://bncgyksbdgtlo" path="res://assets/Other/hihatfoot.png" id="3_lnu2h"]
+[ext_resource type="Script" uid="uid://c5kgfqewyj537" path="res://scripts/beat_lines.gd" id="3_trtic"]
+[ext_resource type="Script" uid="uid://bx1khfdyoy45j" path="res://scripts/hi_hat_pedal_overlays.gd" id="4_ca42v"]
+[ext_resource type="AudioStream" uid="uid://bnsb132b3n1wg" path="res://audio/test.wav" id="4_lbhrr"]
+[ext_resource type="Texture2D" uid="uid://dg1evp60m4ww7" path="res://assets/Gems/stick_click/base.png" id="4_p57ef"]
+[ext_resource type="Script" uid="uid://b360ahqvgh5o5" path="res://scripts/seek_line.gd" id="4_u5sy4"]
+[ext_resource type="Script" uid="uid://d2d7tl0xhk628" path="res://scripts/highway_cover.gd" id="5_dinhu"]
+[ext_resource type="Script" uid="uid://chpn00n6q1wwd" path="res://scripts/play_button.gd" id="5_u5sy4"]
+[ext_resource type="Script" uid="uid://bub7l12sfpwph" path="res://scripts/fps.gd" id="14_trtic"]
+[ext_resource type="PackedScene" uid="uid://dwl6p0banvv2o" path="res://scenes/hihat_overlay.tscn" id="16_rysoc"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_kvpfn"]
+shader = ExtResource("2_kvpfn")
+
+[node name="Game" type="Node2D"]
+
+[node name="Highway" type="Node2D" parent="."]
+script = ExtResource("1_gee14")
+
+[node name="Background" type="Polygon2D" parent="Highway"]
+script = ExtResource("2_vtaks")
+
+[node name="BeatLines" type="Node2D" parent="Highway"]
+script = ExtResource("3_trtic")
+
+[node name="HiHatPedalOverlays" type="Node2D" parent="Highway"]
+position = Vector2(0, 1)
+script = ExtResource("4_ca42v")
+
+[node name="SustainOverlays" type="Node2D" parent="Highway"]
+position = Vector2(0, 1)
+
+[node name="Notes" type="Node2D" parent="Highway"]
+script = ExtResource("3_kvuet")
+
+[node name="Border" type="Line2D" parent="Highway"]
+width = 4.0
+default_color = Color(0.632387, 0.253045, 0.5027, 1)
+script = ExtResource("2_0tnpc")
+
+[node name="Cover" type="Polygon2D" parent="Highway"]
+material = SubResource("ShaderMaterial_kvpfn")
+uv = PackedVector2Array(0, 0, 1, 0, 1, 1, 0, 1)
+script = ExtResource("5_dinhu")
+
+[node name="AudioBar" type="Node2D" parent="."]
+
+[node name="WaveformButton" type="TextureButton" parent="AudioBar"]
+texture_normal = ExtResource("3_lnu2h")
+ignore_texture_size = true
+stretch_mode = 0
+script = ExtResource("3_lbhrr")
+
+[node name="SeekLine" type="Line2D" parent="AudioBar/WaveformButton"]
+width = 4.0
+script = ExtResource("4_u5sy4")
+
+[node name="PlayButton" type="TextureButton" parent="AudioBar"]
+texture_normal = ExtResource("4_p57ef")
+ignore_texture_size = true
+stretch_mode = 0
+script = ExtResource("5_u5sy4")
+
+[node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="AudioBar"]
+stream = ExtResource("4_lbhrr")
+
+[node name="FPS" type="Label" parent="."]
+offset_right = 40.0
+offset_bottom = 23.0
+script = ExtResource("14_trtic")
+
+[node name="InterpolatedTexture" parent="." instance=ExtResource("16_rysoc")]
+visible = false

@@ -1,0 +1,16 @@
+res://assets/gems/stack/lighting0000.png
+res://assets/gems/stack/lighting0001.png
+res://assets/gems/stack/lighting0002.png
+res://assets/gems/stack/lighting0003.png
+res://assets/gems/stack/lighting0004.png
+res://assets/gems/stack/lighting0005.png
+res://assets/gems/stack/lighting0006.png
+res://assets/gems/stack/lighting0007.png
+res://assets/gems/stack/lighting0008.png
+res://assets/gems/stack/lighting0009.png
+res://assets/gems/stack/lighting0010.png
+res://assets/gems/stack/lighting0011.png
+res://assets/gems/stack/lighting0012.png
+res://assets/gems/stack/lighting0013.png
+res://assets/gems/stack/lighting0014.png
+res://assets/gems/stack/lighting0015.png

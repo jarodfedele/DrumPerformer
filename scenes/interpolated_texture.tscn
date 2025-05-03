@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://biplc4vxlgtd7"]
+
+[ext_resource type="Script" uid="uid://2g6nc7dsbtfi" path="res://scripts/interpolated_texture.gd" id="1_k0q4j"]
+
+[node name="InterpolatedTexture" type="TextureRect"]
+texture_repeat = 2
+expand_mode = 1
+script = ExtResource("1_k0q4j")

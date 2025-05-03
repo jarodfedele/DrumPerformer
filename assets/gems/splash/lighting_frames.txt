@@ -1,0 +1,16 @@
+res://assets/gems/splash/lighting0000.png
+res://assets/gems/splash/lighting0001.png
+res://assets/gems/splash/lighting0002.png
+res://assets/gems/splash/lighting0003.png
+res://assets/gems/splash/lighting0004.png
+res://assets/gems/splash/lighting0005.png
+res://assets/gems/splash/lighting0006.png
+res://assets/gems/splash/lighting0007.png
+res://assets/gems/splash/lighting0008.png
+res://assets/gems/splash/lighting0009.png
+res://assets/gems/splash/lighting0010.png
+res://assets/gems/splash/lighting0011.png
+res://assets/gems/splash/lighting0012.png
+res://assets/gems/splash/lighting0013.png
+res://assets/gems/splash/lighting0014.png
+res://assets/gems/splash/lighting0015.png

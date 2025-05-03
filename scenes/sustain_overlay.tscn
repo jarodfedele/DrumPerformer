@@ -1,0 +1,5 @@
+[gd_scene load_steps=2 format=3 uid="uid://dflu64ayk3moh"]
+
+[ext_resource type="PackedScene" uid="uid://biplc4vxlgtd7" path="res://scenes/interpolated_texture.tscn" id="1_jlnif"]
+
+[node name="InterpolatedTexture" instance=ExtResource("1_jlnif")]

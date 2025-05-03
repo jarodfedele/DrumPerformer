@@ -1,0 +1,16 @@
+res://assets/gems/bell/lighting0000.png
+res://assets/gems/bell/lighting0001.png
+res://assets/gems/bell/lighting0002.png
+res://assets/gems/bell/lighting0003.png
+res://assets/gems/bell/lighting0004.png
+res://assets/gems/bell/lighting0005.png
+res://assets/gems/bell/lighting0006.png
+res://assets/gems/bell/lighting0007.png
+res://assets/gems/bell/lighting0008.png
+res://assets/gems/bell/lighting0009.png
+res://assets/gems/bell/lighting0010.png
+res://assets/gems/bell/lighting0011.png
+res://assets/gems/bell/lighting0012.png
+res://assets/gems/bell/lighting0013.png
+res://assets/gems/bell/lighting0014.png
+res://assets/gems/bell/lighting0015.png

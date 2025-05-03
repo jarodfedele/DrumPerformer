@@ -1,0 +1,33 @@
+[gd_scene load_steps=4 format=3 uid="uid://bd8ffn7xv4dlg"]
+
+[ext_resource type="Script" uid="uid://c0o7vvvmr7l10" path="res://scripts/notation.gd" id="1_xdlk0"]
+
+[sub_resource type="SystemFont" id="SystemFont_ydmwe"]
+font_names = PackedStringArray("Verdana")
+subpixel_positioning = 0
+
+[sub_resource type="LabelSettings" id="LabelSettings_ojm37"]
+font = SubResource("SystemFont_ydmwe")
+font_size = 14
+font_color = Color(0, 0, 0, 1)
+
+[node name="Notation" type="Node2D"]
+script = ExtResource("1_xdlk0")
+
+[node name="NotationSprite" type="Sprite2D" parent="."]
+visible = false
+
+[node name="NotationLine" type="Line2D" parent="."]
+visible = false
+width = 2.0
+default_color = Color(0, 0, 0, 1)
+
+[node name="NotationColorRect" type="ColorRect" parent="."]
+visible = false
+
+[node name="NotationMeasureNumber" type="Label" parent="."]
+visible = false
+offset_right = 40.0
+offset_bottom = 23.0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+label_settings = SubResource("LabelSettings_ojm37")

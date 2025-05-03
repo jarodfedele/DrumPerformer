@@ -1,0 +1,272 @@
+[gd_scene load_steps=48 format=3 uid="uid://dxq6r1i15jboc"]
+
+[ext_resource type="Script" uid="uid://b24lsnuvjawt1" path="res://scripts/highway.gd" id="1_gee14"]
+[ext_resource type="Script" uid="uid://khrkx3xyjf80" path="res://scenes/game.gd" id="1_oaba0"]
+[ext_resource type="Script" uid="uid://dljjccap3sv1u" path="res://scripts/highway_border.gd" id="2_0tnpc"]
+[ext_resource type="Shader" uid="uid://bgc2d3kg75655" path="res://shaders/highway_cover.gdshader" id="2_kvpfn"]
+[ext_resource type="Script" uid="uid://b3h3484bs5rkb" path="res://scripts/highway_background.gd" id="2_vtaks"]
+[ext_resource type="Script" uid="uid://c1wg10ctckhvb" path="res://scripts/notes.gd" id="3_kvuet"]
+[ext_resource type="Script" uid="uid://vktnnrq1qmwl" path="res://scripts/waveformButton.gd" id="3_lbhrr"]
+[ext_resource type="Texture2D" uid="uid://dnwfeaf523a4p" path="res://assets/other/hihatfoot.png" id="3_lnu2h"]
+[ext_resource type="Script" uid="uid://c5kgfqewyj537" path="res://scripts/beat_lines.gd" id="3_trtic"]
+[ext_resource type="Script" uid="uid://bx1khfdyoy45j" path="res://scripts/hi_hat_pedal_overlays.gd" id="4_ca42v"]
+[ext_resource type="AudioStream" uid="uid://bnsb132b3n1wg" path="res://audio/test.wav" id="4_lbhrr"]
+[ext_resource type="Script" uid="uid://b360ahqvgh5o5" path="res://scripts/seek_line.gd" id="4_u5sy4"]
+[ext_resource type="Script" uid="uid://d2d7tl0xhk628" path="res://scripts/highway_cover.gd" id="5_dinhu"]
+[ext_resource type="Script" uid="uid://3dsa6oo17rw" path="res://scripts/sustain_overlays.gd" id="5_rysoc"]
+[ext_resource type="Script" uid="uid://chpn00n6q1wwd" path="res://scripts/play_button.gd" id="5_u5sy4"]
+[ext_resource type="Script" uid="uid://dwgpmejy7ynfb" path="res://scripts/staff_background.gd" id="10_1kice"]
+[ext_resource type="Script" uid="uid://61ovdhx127v0" path="res://scripts/staff.gd" id="10_twgab"]
+[ext_resource type="Script" uid="uid://drj30quqgv06y" path="res://scripts/notation_pages.gd" id="11_5newe"]
+[ext_resource type="Texture2D" uid="uid://dis8fms30rq6g" path="res://assets/notations/clef_percussion.png" id="12_7025r"]
+[ext_resource type="Script" uid="uid://b124552n3l1hr" path="res://scripts/staff_lines.gd" id="12_gxtfn"]
+[ext_resource type="Script" uid="uid://b1ufxct8jh6ii" path="res://scripts/staff_clef.gd" id="12_nepv3"]
+[ext_resource type="Script" uid="uid://f5koqjp1sceb" path="res://scripts/staff_seek_line.gd" id="14_02fa5"]
+[ext_resource type="Script" uid="uid://bub7l12sfpwph" path="res://scripts/fps.gd" id="14_trtic"]
+[ext_resource type="Script" uid="uid://jdxrqq1lbydj" path="res://scripts/audio_stream_player.gd" id="15_264po"]
+[ext_resource type="Script" uid="uid://b4ldspkxgw0bj" path="res://scripts/staff_cover.gd" id="15_m4url"]
+[ext_resource type="Script" uid="uid://d2dk17htvrfca" path="res://scripts/waveform_lines.gd" id="15_rysoc"]
+[ext_resource type="Script" uid="uid://c7a2xdpolqtbv" path="res://scripts/timecode.gd" id="17_ssvqc"]
+[ext_resource type="Texture2D" uid="uid://diikdhsnib86m" path="res://assets/other/play_button.png" id="20_m4url"]
+[ext_resource type="Script" uid="uid://c3gdbg6cymqnb" path="res://scripts/hud.gd" id="22_37s47"]
+[ext_resource type="Script" uid="uid://63d5qp1f3njm" path="res://scripts/tint_colored_check.gd" id="23_bt5mj"]
+[ext_resource type="Script" uid="uid://33775qjnhkyc" path="res://scripts/lighting_fps_slider.gd" id="24_e1j6l"]
+[ext_resource type="Script" uid="uid://diin2laee88ir" path="res://scripts/lighting_fps_label.gd" id="25_pl11u"]
+[ext_resource type="Script" uid="uid://brvhispmbp5um" path="res://scripts/gem_selector.gd" id="26_bhx41"]
+[ext_resource type="Script" uid="uid://dt3tcnfsjn8rf" path="res://scripts/lighting_alpha_slider.gd" id="26_js0lu"]
+[ext_resource type="Script" uid="uid://ch73jenyqx13f" path="res://scripts/lighting_alpha_label.gd" id="27_gxtfn"]
+[ext_resource type="Script" uid="uid://bhoimixv1dj6r" path="res://scripts/shift_x_slider.gd" id="27_qnb83"]
+[ext_resource type="Script" uid="uid://cgdroqoontpn8" path="res://scripts/shift_x_label.gd" id="28_sww3w"]
+[ext_resource type="Script" uid="uid://c6mnp3we75n6e" path="res://scripts/shift_y_slider.gd" id="29_wljb1"]
+[ext_resource type="Script" uid="uid://cak8fvc3pyxn1" path="res://scripts/shift_y_label.gd" id="30_v2yb1"]
+[ext_resource type="Script" uid="uid://dvogkqfs1wn8o" path="res://scripts/scale_slider.gd" id="31_js0lu"]
+[ext_resource type="Script" uid="uid://l7qxi5ve6kfe" path="res://scripts/scale_label.gd" id="32_gxtfn"]
+[ext_resource type="Script" uid="uid://d34muh853sgbe" path="res://scripts/file_dialog.gd" id="34_8ool0"]
+[ext_resource type="Script" uid="uid://bcajro5jgaatj" path="res://scripts/tint_alpha_slider.gd" id="42_05nbr"]
+[ext_resource type="Script" uid="uid://bieoqtck66nji" path="res://scripts/tint_alpha_label.gd" id="43_0sl42"]
+[ext_resource type="Script" uid="uid://biwux207uf71g" path="res://scripts/blend_mode_selector.gd" id="43_458eo"]
+[ext_resource type="Script" uid="uid://cktscbe6hgjvf" path="res://scripts/reload_gems_button.gd" id="44_0sl42"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_kvpfn"]
+shader = ExtResource("2_kvpfn")
+
+[node name="Game" type="Node2D"]
+script = ExtResource("1_oaba0")
+
+[node name="SongSelectMenu" type="Node2D" parent="."]
+
+[node name="Song" type="Node2D" parent="."]
+
+[node name="Highway" type="Node2D" parent="."]
+script = ExtResource("1_gee14")
+
+[node name="Background" type="Polygon2D" parent="Highway"]
+color = Color(0, 0, 0, 1)
+script = ExtResource("2_vtaks")
+
+[node name="HiHatPedalOverlays" type="Node2D" parent="Highway"]
+position = Vector2(0, 1)
+script = ExtResource("4_ca42v")
+
+[node name="BeatLines" type="Node2D" parent="Highway"]
+script = ExtResource("3_trtic")
+
+[node name="SustainOverlays" type="Node2D" parent="Highway"]
+position = Vector2(0, 1)
+script = ExtResource("5_rysoc")
+
+[node name="Notes" type="Node2D" parent="Highway"]
+script = ExtResource("3_kvuet")
+
+[node name="Border" type="Line2D" parent="Highway"]
+width = 4.0
+default_color = Color(0.632387, 0.253045, 0.5027, 1)
+script = ExtResource("2_0tnpc")
+
+[node name="Cover" type="Polygon2D" parent="Highway"]
+z_index = 16
+material = SubResource("ShaderMaterial_kvpfn")
+uv = PackedVector2Array(0, 0, 1, 0, 1, 1, 0, 1)
+script = ExtResource("5_dinhu")
+
+[node name="Staff" type="Node2D" parent="."]
+script = ExtResource("10_twgab")
+
+[node name="StaffBackground" type="Polygon2D" parent="Staff"]
+script = ExtResource("10_1kice")
+
+[node name="NotationPages" type="Node2D" parent="Staff"]
+script = ExtResource("11_5newe")
+
+[node name="StaffCover" type="Polygon2D" parent="Staff"]
+script = ExtResource("15_m4url")
+
+[node name="StaffClef" type="Sprite2D" parent="Staff"]
+texture = ExtResource("12_7025r")
+script = ExtResource("12_nepv3")
+
+[node name="StaffLines" type="Node2D" parent="Staff"]
+script = ExtResource("12_gxtfn")
+
+[node name="StaffSeekLine" type="Line2D" parent="Staff"]
+width = 4.0
+default_color = Color(0.235294, 0.482353, 0.239216, 1)
+script = ExtResource("14_02fa5")
+
+[node name="AudioBar" type="Node2D" parent="."]
+
+[node name="WaveformButton" type="TextureButton" parent="AudioBar"]
+texture_normal = ExtResource("3_lnu2h")
+ignore_texture_size = true
+stretch_mode = 0
+script = ExtResource("3_lbhrr")
+
+[node name="PlayButton" type="TextureButton" parent="AudioBar"]
+texture_normal = ExtResource("20_m4url")
+ignore_texture_size = true
+stretch_mode = 0
+script = ExtResource("5_u5sy4")
+
+[node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="AudioBar"]
+stream = ExtResource("4_lbhrr")
+script = ExtResource("15_264po")
+
+[node name="WaveformLines" type="Line2D" parent="AudioBar"]
+width = 1.0
+script = ExtResource("15_rysoc")
+
+[node name="SeekLine" type="Line2D" parent="AudioBar"]
+width = 4.0
+default_color = Color(0.236633, 0.481223, 0.240062, 1)
+script = ExtResource("4_u5sy4")
+
+[node name="Timecode" type="Label" parent="AudioBar"]
+offset_right = 40.0
+offset_bottom = 23.0
+script = ExtResource("17_ssvqc")
+
+[node name="FPS" type="Label" parent="."]
+offset_right = 40.0
+offset_bottom = 23.0
+script = ExtResource("14_trtic")
+
+[node name="DebugHUD" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("22_37s47")
+
+[node name="Background" type="ColorRect" parent="DebugHUD"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.194178, 0.281254, 0.148787, 1)
+
+[node name="TintColoredCheck" type="CheckBox" parent="DebugHUD"]
+layout_mode = 0
+offset_right = 24.0
+offset_bottom = 24.0
+text = "Use brass-colored cymbal tints?"
+script = ExtResource("23_bt5mj")
+
+[node name="LightingFPSSlider" type="HSlider" parent="DebugHUD"]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 16.0
+script = ExtResource("24_e1j6l")
+
+[node name="LightingFPSLabel" type="Label" parent="DebugHUD"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+script = ExtResource("25_pl11u")
+
+[node name="LightingAlphaSlider" type="HSlider" parent="DebugHUD"]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 16.0
+script = ExtResource("26_js0lu")
+
+[node name="LightingAlphaLabel" type="Label" parent="DebugHUD"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+script = ExtResource("27_gxtfn")
+
+[node name="FileDialog" type="FileDialog" parent="DebugHUD"]
+title = "Open a Directory"
+initial_position = 1
+visible = true
+ok_button_text = "Select Current Folder"
+file_mode = 2
+access = 2
+script = ExtResource("34_8ool0")
+
+[node name="GemSelector" type="OptionButton" parent="DebugHUD"]
+visible = false
+layout_mode = 0
+offset_right = 32.0
+offset_bottom = 20.0
+script = ExtResource("26_bhx41")
+
+[node name="GemPositioner" type="Node2D" parent="DebugHUD"]
+visible = false
+
+[node name="ShiftXSlider" type="HSlider" parent="DebugHUD/GemPositioner"]
+offset_right = 8.0
+offset_bottom = 16.0
+script = ExtResource("27_qnb83")
+
+[node name="ShiftXLabel" type="Label" parent="DebugHUD/GemPositioner"]
+offset_right = 40.0
+offset_bottom = 23.0
+script = ExtResource("28_sww3w")
+
+[node name="ShiftYSlider" type="HSlider" parent="DebugHUD/GemPositioner"]
+offset_right = 8.0
+offset_bottom = 16.0
+script = ExtResource("29_wljb1")
+
+[node name="ShiftYLabel" type="Label" parent="DebugHUD/GemPositioner"]
+offset_right = 40.0
+offset_bottom = 23.0
+script = ExtResource("30_v2yb1")
+
+[node name="ScaleSlider" type="HSlider" parent="DebugHUD/GemPositioner"]
+offset_right = 8.0
+offset_bottom = 16.0
+script = ExtResource("31_js0lu")
+
+[node name="ScaleLabel" type="Label" parent="DebugHUD/GemPositioner"]
+offset_right = 40.0
+offset_bottom = 23.0
+script = ExtResource("32_gxtfn")
+
+[node name="BlendModeSelector" type="OptionButton" parent="DebugHUD/GemPositioner"]
+offset_right = 32.0
+offset_bottom = 20.0
+script = ExtResource("43_458eo")
+
+[node name="TintAlphaSlider" type="HSlider" parent="DebugHUD/GemPositioner"]
+offset_right = 8.0
+offset_bottom = 16.0
+script = ExtResource("42_05nbr")
+
+[node name="TintAlphaLabel" type="Label" parent="DebugHUD/GemPositioner"]
+offset_right = 40.0
+offset_bottom = 23.0
+script = ExtResource("43_0sl42")
+
+[node name="ReloadGemsButton" type="Button" parent="DebugHUD"]
+visible = false
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+text = "Reload gems..."
+script = ExtResource("44_0sl42")
+
+[connection signal="finished" from="AudioBar/AudioStreamPlayer" to="AudioBar/AudioStreamPlayer" method="_on_finished"]

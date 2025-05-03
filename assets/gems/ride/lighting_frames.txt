@@ -1,0 +1,16 @@
+res://assets/gems/ride/lighting0000.png
+res://assets/gems/ride/lighting0001.png
+res://assets/gems/ride/lighting0002.png
+res://assets/gems/ride/lighting0003.png
+res://assets/gems/ride/lighting0004.png
+res://assets/gems/ride/lighting0005.png
+res://assets/gems/ride/lighting0006.png
+res://assets/gems/ride/lighting0007.png
+res://assets/gems/ride/lighting0008.png
+res://assets/gems/ride/lighting0009.png
+res://assets/gems/ride/lighting0010.png
+res://assets/gems/ride/lighting0011.png
+res://assets/gems/ride/lighting0012.png
+res://assets/gems/ride/lighting0013.png
+res://assets/gems/ride/lighting0014.png
+res://assets/gems/ride/lighting0015.png

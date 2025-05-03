@@ -1,0 +1,16 @@
+res://assets/gems/snare/lighting0000.png
+res://assets/gems/snare/lighting0001.png
+res://assets/gems/snare/lighting0002.png
+res://assets/gems/snare/lighting0003.png
+res://assets/gems/snare/lighting0004.png
+res://assets/gems/snare/lighting0005.png
+res://assets/gems/snare/lighting0006.png
+res://assets/gems/snare/lighting0007.png
+res://assets/gems/snare/lighting0008.png
+res://assets/gems/snare/lighting0009.png
+res://assets/gems/snare/lighting0010.png
+res://assets/gems/snare/lighting0011.png
+res://assets/gems/snare/lighting0012.png
+res://assets/gems/snare/lighting0013.png
+res://assets/gems/snare/lighting0014.png
+res://assets/gems/snare/lighting0015.png

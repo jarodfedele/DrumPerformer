@@ -1,0 +1,6 @@
+shiftx 0.02
+shifty 0.3
+scale 2
+zorder 2
+blend_tint linear_burn
+blend_lighting linear_dodge

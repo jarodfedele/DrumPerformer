@@ -1,0 +1,16 @@
+res://assets/gems/hihat/lighting0000.png
+res://assets/gems/hihat/lighting0001.png
+res://assets/gems/hihat/lighting0002.png
+res://assets/gems/hihat/lighting0003.png
+res://assets/gems/hihat/lighting0004.png
+res://assets/gems/hihat/lighting0005.png
+res://assets/gems/hihat/lighting0006.png
+res://assets/gems/hihat/lighting0007.png
+res://assets/gems/hihat/lighting0008.png
+res://assets/gems/hihat/lighting0009.png
+res://assets/gems/hihat/lighting0010.png
+res://assets/gems/hihat/lighting0011.png
+res://assets/gems/hihat/lighting0012.png
+res://assets/gems/hihat/lighting0013.png
+res://assets/gems/hihat/lighting0014.png
+res://assets/gems/hihat/lighting0015.png
