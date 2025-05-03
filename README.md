@@ -14,4 +14,4 @@ Drum Performer (tentatively named) is a rhythm game under development that doubl
 
 -The base game will come with one drum sample pack covering the basic drum kit, and users can purchase drum sample packs that add new drums, cymbals, and mixes to their collection of drums. These drum samples can be assigned per song.
 
--A lesson mode is planned that will feature interactive video lessons on various drum techniques, with original music written specifically for the game that act as tecnhique-specific challenges.
+-A lesson mode is planned that will feature interactive video lessons on various drum techniques, with original music written specifically for the game that act as technique-specific challenges.
