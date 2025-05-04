@@ -9,8 +9,6 @@ extends Node2D
 @onready var measure_number = $NotationMeasureNumber
 @onready var staff = get_parent().get_parent()
 
-const Utils = preload("res://scripts/utils.gd")
-
 var category : String
 var time
 var file_name

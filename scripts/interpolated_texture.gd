@@ -20,8 +20,6 @@ var quad_yMin
 var quad_yMax
 var quad_ySize
 
-const Utils = preload("res://scripts/utils.gd")
-
 func _physics_process(delta):
 	current_point_index = 0 #TODO: initial binary search to get first correct index for the frame
 	update_current_point_index_variables(0)

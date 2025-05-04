@@ -3,7 +3,6 @@ extends Node2D
 @onready var highway = get_parent().get_parent()
 
 const LightingFrameScene = preload("res://scenes/lighting_frame.tscn")
-const Utils = preload("res://scripts/utils.gd")
 
 var time : float
 var gem : String
@@ -34,28 +33,22 @@ var lighting_frame_file_name = "lighting_frames.txt"
 @onready var ring = $Ring
 @onready var lighting = $Lighting
 
-func generate_lighting_frame_list():
-	var path = original_gem_path + lighting_frame_file_name
-	if FileAccess.file_exists(path):
-		return
-		
-	var output = ""
-	
-	var dir = DirAccess.open(original_gem_path)
-	if dir:
-		dir.list_dir_begin()
-		var file_name = dir.get_next()
-		while file_name != "":
-			if "lighting" in file_name and file_name.ends_with(".png"):
-				output += original_gem_path + file_name + "\n"
-			file_name = dir.get_next()
-		dir.list_dir_end()
+func set_texture(scene, list_index):
+	var tex = Global.get_gem_texture(gem, list_index)
+	if tex:
+		scene.texture = tex
 
-	var file = FileAccess.open(path, FileAccess.WRITE)
-	file.store_string(output)
-	file.close()
-			
-func update_sprites():
+func set_sprite():
+	set_texture(tint, 1)
+	set_texture(tint_colored, 2)
+	set_texture(base, 3)
+	set_texture(ring, 4)
+
+	if not base.texture:
+		print("Missing base texture at:", gem_path + "base.png")
+
+	aspect_ratio = base.texture.get_width()/base.texture.get_height()
+	
 	if tint_colored.texture and Global.setting_tint_colored:
 		tint.visible = false
 		tint_colored.visible = true
@@ -77,38 +70,16 @@ func update_sprites():
 	var current_section = null
 	for file_path in lines:
 		file_path = file_path.strip_edges()
-		var tex = load(file_path)
-		frames.add_frame("default", tex)
+		if ResourceLoader.exists(file_path):
+			var tex = load(file_path)
+			frames.add_frame("default", tex)
 	lighting.frames = frames
 	lighting.play("default")
 	
 	frames.set_animation_speed("default", Global.lighting_fps)
 	
 	lighting.modulate = Color(1, 1, 1, Global.lighting_alpha/255.0)
-
-func set_texture(scene, list_index):
-	var tex = Global.get_gem_texture(gem, list_index)
-	if tex:
-		scene.texture = tex
-
-func update_textures():
-	set_texture(tint, 1)
-	set_texture(tint_colored, 2)
-	set_texture(base, 3)
-	set_texture(ring, 4)
-
-	if not base.texture:
-		print("Missing base texture at:", gem_path + "base.png")
-
-	aspect_ratio = base.texture.get_width()/base.texture.get_height()
-	
-	update_sprites()
 		
-func _ready():
-	generate_lighting_frame_list()
-	
-	update_textures()
-	
 func update_position():
 	var is_visible = (time >= highway.visible_time_min and time <= highway.visible_time_max)
 	

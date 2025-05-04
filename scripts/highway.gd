@@ -1,8 +1,5 @@
 extends Node2D
 
-var audio_frame_count = 0
-var audio_play_start_time = 0.0
-
 var num_lanes = 6.0 #make sure this is a float!
 var lane_position_list: Array = []
 var chart_x_min_2: float = 0.0
@@ -10,45 +7,377 @@ var chart_x_max_2: float = 0.0
 var horizon_x: float = 0.0
 var horizon_y: float = 0.0
 
-var current_song_time = 0.0
-var previous_song_time = current_song_time
 var visible_time_min
 var visible_time_max
 
-var note_data: Array = []
-var beatline_data: Array = []
-var hihatpedal_data: Array = []
-var sustain_data: Array = []
-var notation_data: Array = []
-var staffline_data: Array = []
-#other gameDataTables; don't forget to clear() the data
+const BeatLineScene = preload("res://scenes/beatline.tscn")
+const HiHatOverlayScene = preload("res://scenes/hihat_overlay.tscn")
+const SustainOverlayScene = preload("res://scenes/sustain_overlay.tscn")
+const NoteScene = preload("res://scenes/note.tscn")
 
-const Utils = preload("res://scripts/utils.gd")
+@onready var song_audio_player = get_node("/root/Game/AudioManager/SongAudioPlayer")
+@onready var song = get_node("/root/Game/Song")
 
-@onready var audio_player = $"../AudioBar/AudioStreamPlayer"
 @onready var notes = $Notes
-@onready var beatlines = $BeatLines
-@onready var notations = $"../Staff/Notations"
-@onready var staff = $"../Staff"
+@onready var beat_lines = $BeatLines
+@onready var hihat_pedal_overlays = $HiHatPedalOverlays
+@onready var sustain_overlays = $SustainOverlays
 
-func _physics_process(delta):
-	if audio_player:
-		if audio_frame_count == 60 or not audio_player.playing:
-			sync_song_time(audio_player.get_playback_position())
+@onready var background = $Background
+@onready var border = $Border
+@onready var cover = $Cover
+
+var interpolated_texture_shader := preload("res://shaders//interpolated_texture.gdshader")
+
+const hihat_foot_tex = preload("res://assets//other//hihatfoot.png")
+const tremolo_tex = preload("res://assets//other//tremolo.png")
+const buzz_tex = preload("res://assets//other//buzz.png")
+
+func update_contents():
+	visible_time_min = song.current_song_time
+	visible_time_max = visible_time_min + Global.VISIBLE_TIMERANGE
+	
+	notes.update_positions()
+	beat_lines.update_positions()
+
+func populate_beat_lines():
+	# Clean up old notes
+	for child in beat_lines.get_children():
+		child.queue_free()
+
+	# Create new notes
+	for data in song.beatline_data:
+		var beatline = BeatLineScene.instantiate()
+		
+		beatline.time = data[0]
+		beatline.color_r = data[1]
+		beatline.color_g = data[2]
+		beatline.color_b = data[3]
+		beatline.thickness = data[4]
+
+		beat_lines.add_child(beatline)
+		
+func populate_hihat_pedal_overlays():
+	# Clean up old notes
+	for child in hihat_pedal_overlays.get_children():
+		child.queue_free()
+
+	# Create new notes
+	for data in song.hihatpedal_data:
+		var hihat_overlay = HiHatOverlayScene.instantiate()
+		
+		var bottom_left_x = data[0]
+		var top_left_x = data[1]
+		var bottom_right_x = data[2]
+		var top_right_x = data[3]
+		var color_r = data[4]
+		var color_g = data[5]
+		var color_b = data[6]
+		var cc_points = data[7]
+		
+		hihat_overlay.texture = hihat_foot_tex
+		
+		###############
+		
+		var mat = ShaderMaterial.new()
+		mat.shader = interpolated_texture_shader
+		hihat_overlay.material = mat
+		hihat_overlay.material.set_shader_parameter("tint_color", Color(color_r/255.0, color_g/255.0, color_b/255.0))
+		
+		var quad_yMin = Global.CHART_YMIN
+		var quad_yMax = Global.CHART_YMAX
+		var quad_ySize = float(quad_yMax - quad_yMin)
+		hihat_overlay.quad_yMin = quad_yMin
+		hihat_overlay.quad_yMax = quad_yMax
+		hihat_overlay.quad_ySize = quad_ySize
+		
+		var uv_left_bounds = []
+		var uv_right_bounds = []
+		
+		var x_left_min = min(top_left_x, bottom_left_x)
+		var x_left_max = max(top_left_x, bottom_left_x)
+		var x_right_min = min(top_right_x, bottom_right_x)
+		var x_right_max = max(top_right_x, bottom_right_x)
+		var size_x = x_right_max - x_left_min
+		var normalized_offset = x_left_min
+		
+		hihat_overlay.position = Vector2(x_left_min, quad_yMin)
+		hihat_overlay.size = Vector2(size_x, quad_ySize)
+
+		x_left_min = x_left_min - normalized_offset
+		x_left_max = x_left_max - normalized_offset
+		x_right_min = x_right_min - normalized_offset
+		x_right_max = x_right_max - normalized_offset
+		
+		for row_index in range(quad_ySize):
+			var uv_y = ((quad_ySize - 1) - row_index) / float(quad_ySize - 1)
 			
-		current_song_time = audio_play_start_time + (1.0/60.0)*audio_frame_count
-		visible_time_min = current_song_time
-		visible_time_max = visible_time_min + Global.VISIBLE_TIMERANGE
-		
-		notes.update_positions()
-		beatlines.update_positions()
-		
-		previous_song_time = current_song_time
-		audio_frame_count = audio_frame_count + 1
+			# Interpolate x positions in pixel space
+			var xMin = lerp(top_left_x - normalized_offset, bottom_left_x - normalized_offset, uv_y)
+			var xMax = lerp(top_right_x - normalized_offset, bottom_right_x - normalized_offset, uv_y)
 
-func sync_song_time(song_time):
-	audio_frame_count = 0
-	audio_play_start_time = song_time
+			# Normalize to UV space (0–1)
+			var uv_left = xMin / size_x
+			var uv_right = xMax / size_x
+
+			# Optional safety clamp
+			uv_left = clamp(uv_left, 0.0, 1.0)
+			uv_right = clamp(uv_right, 0.0, 1.0)
+
+			uv_left_bounds.append(uv_left)
+			uv_right_bounds.append(uv_right)
+		
+		hihat_overlay.material.set_shader_parameter("mode", 0)
+
+		var uv_left_tex = Global.generate_alpha_texture(uv_left_bounds)
+		hihat_overlay.material.set_shader_parameter("uv_left_bounds_map", uv_left_tex)
+		hihat_overlay.material.set_shader_parameter("uv_left_bounds_map_height", uv_left_bounds.size())
+		var uv_right_tex = Global.generate_alpha_texture(uv_right_bounds)
+		hihat_overlay.material.set_shader_parameter("uv_right_bounds_map", uv_right_tex)
+		hihat_overlay.material.set_shader_parameter("uv_right_bounds_map_height", uv_right_bounds.size())
+		
+		hihat_overlay.material.set_shader_parameter("top_left_x", top_left_x)
+		hihat_overlay.material.set_shader_parameter("top_right_x", top_right_x)
+		hihat_overlay.material.set_shader_parameter("bottom_right_x", bottom_right_x)
+		hihat_overlay.material.set_shader_parameter("bottom_left_x", bottom_left_x)
+		
+		############
+		
+		var alpha_values := []
+		var num_points = cc_points.size()
+		
+		for y in range(0, num_points):
+			var point_data = cc_points[y]
+			
+			var time = point_data[0]
+			var alpha = point_data[1]
+			var next_time = 1000000.0 #TODO: endEvt?
+			var next_alpha = alpha
+			var is_gradient = false
+
+			if y + 1 < num_points:
+				var next_point_data = cc_points[y + 1]
+				next_time = next_point_data[0]
+				is_gradient = point_data[2]
+				if is_gradient:
+					next_alpha = next_point_data[1]
+
+			alpha_values.append([time, alpha, next_time, next_alpha, is_gradient])
+
+		hihat_overlay.points = alpha_values
+		hihat_pedal_overlays.add_child(hihat_overlay)
+
+func populate_sustain_overlays():
+	# Clean up old notes
+	for child in sustain_overlays.get_children():
+		child.queue_free()
+
+	# Create new notes
+	for data in song.sustain_data:
+		var sustain_overlay = SustainOverlayScene.instantiate()
+		
+		var bottom_left_x = data[0]
+		var top_left_x = data[1]
+		var bottom_right_x = data[2]
+		var top_right_x = data[3]
+		var color_r = data[4]
+		var color_g = data[5]
+		var color_b = data[6]
+		var sustain_type = data[7]
+		var cc_points = data[8]
+		
+		if sustain_type == "tremolo":
+			sustain_overlay.texture = tremolo_tex
+		if sustain_type == "buzz":
+			sustain_overlay.texture = buzz_tex
+		
+		###############
+		
+		var mat = ShaderMaterial.new()
+		mat.shader = interpolated_texture_shader
+		sustain_overlay.material = mat
+		sustain_overlay.material.set_shader_parameter("mode", 1)
+		sustain_overlay.material.set_shader_parameter("tint_color", Color(color_r/255.0, color_g/255.0, color_b/255.0))
+		
+		var quad_yMin = Global.CHART_YMIN
+		var quad_yMax = Global.CHART_YMAX
+		var quad_ySize = float(quad_yMax - quad_yMin)
+		sustain_overlay.quad_yMin = quad_yMin
+		sustain_overlay.quad_yMax = quad_yMax
+		sustain_overlay.quad_ySize = quad_ySize
+		
+		var uv_left_bounds = []
+		var uv_right_bounds = []
+		
+		var x_left_min = min(top_left_x, bottom_left_x)
+		var x_left_max = max(top_left_x, bottom_left_x)
+		var x_right_min = min(top_right_x, bottom_right_x)
+		var x_right_max = max(top_right_x, bottom_right_x)
+		var size_x = x_right_max - x_left_min
+		var normalized_offset = x_left_min
+		
+		sustain_overlay.position = Vector2(x_left_min, quad_yMin)
+		sustain_overlay.size = Vector2(size_x, quad_ySize)
+
+		x_left_min = x_left_min - normalized_offset
+		x_left_max = x_left_max - normalized_offset
+		x_right_min = x_right_min - normalized_offset
+		x_right_max = x_right_max - normalized_offset
+		
+		for row_index in range(quad_ySize):
+			var uv_y = ((quad_ySize - 1) - row_index) / float(quad_ySize - 1)
+			
+			# Interpolate x positions in pixel space
+			var xMin = lerp(top_left_x - normalized_offset, bottom_left_x - normalized_offset, uv_y)
+			var xMax = lerp(top_right_x - normalized_offset, bottom_right_x - normalized_offset, uv_y)
+
+			# Normalize to UV space (0–1)
+			var uv_left = xMin / size_x
+			var uv_right = xMax / size_x
+
+			# Optional safety clamp
+			uv_left = clamp(uv_left, 0.0, 1.0)
+			uv_right = clamp(uv_right, 0.0, 1.0)
+
+			uv_left_bounds.append(uv_left)
+			uv_right_bounds.append(uv_right)
+		
+		sustain_overlay.material.set_shader_parameter("mode", 1)
+
+		var uv_left_tex = Global.generate_alpha_texture(uv_left_bounds)
+		sustain_overlay.material.set_shader_parameter("uv_left_bounds_map", uv_left_tex)
+		sustain_overlay.material.set_shader_parameter("uv_left_bounds_map_height", uv_left_bounds.size())
+		var uv_right_tex = Global.generate_alpha_texture(uv_right_bounds)
+		sustain_overlay.material.set_shader_parameter("uv_right_bounds_map", uv_right_tex)
+		sustain_overlay.material.set_shader_parameter("uv_right_bounds_map_height", uv_right_bounds.size())
+		
+		sustain_overlay.material.set_shader_parameter("top_left_x", top_left_x)
+		sustain_overlay.material.set_shader_parameter("top_right_x", top_right_x)
+		sustain_overlay.material.set_shader_parameter("bottom_right_x", bottom_right_x)
+		sustain_overlay.material.set_shader_parameter("bottom_left_x", bottom_left_x)
+		
+		############
+		
+		var percentage_values := []
+		var num_points = cc_points.size()
+		
+		for y in range(0, num_points-1):
+			var point_data = cc_points[y]
+			
+			var time = point_data[0]
+			var percentage = point_data[1]
+			var next_percentage = percentage
+
+			var next_point_data = cc_points[y + 1]
+			var next_time = next_point_data[0]
+			var is_gradient = point_data[2]
+			if is_gradient:
+				next_percentage = next_point_data[1]
+			
+			percentage_values.append([time, percentage, next_time, next_percentage, is_gradient])
+			
+		sustain_overlay.points = percentage_values
+		sustain_overlays.add_child(sustain_overlay)
+
+func populate_notes():
+	for child in notes.get_children():
+		child.queue_free()
+
+	# Create new notes
+	for data in song.note_data:
+		var note = NoteScene.instantiate()
+		
+		note.time = data[0]
+		var gem = data[1]
+		note.gem = gem
+		note.color_r = data[2]
+		note.color_g = data[3]
+		note.color_b = data[4]
+		note.lane_start = data[5]
+		note.lane_end = data[6]
+		note.velocity = data[7]
+		note.gem_path = Global.GEMS_PATH + note.gem + "/"
+		note.original_gem_path = Global.ORIGINAL_GEMS_PATH + note.gem + "/"
+		
+		var positioning_shift_x = Global.get_gem_config_setting(gem, "shiftx")
+		if positioning_shift_x:
+			note.positioning_shift_x = positioning_shift_x
+		var positioning_shift_y = Global.get_gem_config_setting(gem, "shifty")
+		if positioning_shift_y:
+			note.positioning_shift_y = positioning_shift_y
+		var positioning_scale = Global.get_gem_config_setting(gem, "scale")
+		if positioning_scale:
+			note.positioning_scale = positioning_scale
+		var blend_tint = Global.get_gem_config_setting(gem, "blend_tint")
+		if blend_tint:
+			note.blend_tint = blend_tint
+		var blend_lighting = Global.get_gem_config_setting(gem, "blend_lighting")
+		if blend_lighting:
+			note.blend_lighting = blend_lighting
+		var z_order = Global.get_gem_config_setting(gem, "zorder")
+		if z_order:
+			note.z_index = z_order
+		var color_r = Global.get_gem_config_setting(gem, "color_r")
+		if color_r:
+			note.color_r = color_r
+		var color_g = Global.get_gem_config_setting(gem, "color_g")
+		if color_g:
+			note.color_b = color_g
+		var color_b = Global.get_gem_config_setting(gem, "color_b")
+		if color_b:
+			note.color_b = color_b
+		var color_a = Global.get_gem_config_setting(gem, "alpha")
+		if color_a:
+			note.color_a = color_a
+		
+		notes.add_child(note)
+		note.set_sprite()
+
+#for cover
+func generate_uvs(points: PackedVector2Array) -> PackedVector2Array:
+	var min_y = points[0].y
+	var max_y = points[0].y
+	for p in points:
+		min_y = min(min_y, p.y)
+		max_y = max(max_y, p.y)
+
+	var height = max_y - min_y
+	var uvs = PackedVector2Array()
+	for p in points:
+		var u = 0.5  # Optional: center of gradient
+		var v = (p.y - min_y) / height if height != 0 else 0.0
+		uvs.append(Vector2(u, v))
+	return uvs
+	
+func draw_background():
+	var border_points = get_border_points()
+	background.polygon = border_points
+	
+func draw_border():
+	var border_points = get_border_points()
+	border.add_point(border_points[3])
+	border.add_point(border_points[0])
+	border.add_point(border_points[1])
+	border.add_point(border_points[2])
+	#border.add_point(border_points[3])
+	
+func draw_cover():
+	var shader = load("res://shaders/highway_cover.gdshader")
+
+	var shader_material = ShaderMaterial.new()
+	shader_material.shader = shader
+
+	cover.material = shader_material
+	
+	var image = Image.create(1, 1, false, Image.FORMAT_RGBA8)
+	image.fill(Color(1, 1, 1, 1))
+	var dummy_texture = ImageTexture.create_from_image(image)
+	cover.texture = dummy_texture
+	
+	var border_points = get_fade_points()
+
+	cover.polygon = border_points
+	cover.uv = generate_uvs(border_points)
 	
 func get_lane_position(lane: int) -> Array:
 	if lane >= 0 and lane < lane_position_list.size():
@@ -86,7 +415,7 @@ func get_chart_x_min_2() -> float:
 func get_chart_x_max_2() -> float:
 	return get_lane_position(num_lanes)[1]
 		
-func reset_lane_positions():
+func reset_lane_position_list():
 	lane_position_list.clear()
 
 	for lane in range(num_lanes + 1):
@@ -122,275 +451,7 @@ func get_y_pos_from_time(time: float, is_highway_skin: bool) -> float:
 	if is_highway_skin:
 		time_at_half_horizon *= 0.44  #TODO: find correct math
 
-	var time_at_strikeline = current_song_time
+	var time_at_strikeline = song.current_song_time
 	var future = time -  time_at_strikeline
 	var halves = future / time_at_half_horizon
 	return horizon_y + (y_strikeline - horizon_y) * pow(0.5, halves)
-
-func process_general_data(values):
-	var header = values[0]
-	var val = values[1]
-	
-	if header == "center_staff_line":
-		Global.center_staff_line = val*Global.STAFF_SPACE_HEIGHT + Global.NOTATION_YMIN
-		for i in range(5):
-			var yPos = Global.center_staff_line + (i-2)*Global.STAFF_SPACE_HEIGHT
-			staffline_data.append(yPos)
-	
-func process_note_data(values):
-	var time = values[0]
-	var gem = values[1]
-	var color = values[2]
-	var lane_start = values[3]
-	var lane_end = values[4]
-	var velocity = values[5]
-	var rgb = Utils.color_to_rgb(color)
-	var color_r = rgb[0]
-	var color_g = rgb[1]
-	var color_b = rgb[2]
-	
-	if gem != "none":
-		note_data.insert(0, [time, gem, color_r, color_g, color_b, lane_start, lane_end, velocity])
-
-func process_beatline_data(values):
-	var time = values[0]
-	var color_r = values[1]
-	var color_g = values[2]
-	var color_b = values[3]
-	var thickness = values[4]
-
-	beatline_data.append([time, color_r, color_g, color_b, thickness])
-
-func process_hihatpedal_data(values):
-	var lane_start = values[0]
-	var lane_end = values[1]
-	var color = values[2]
-	var rgb = Utils.color_to_rgb(color)
-	var color_r = rgb[0]
-	var color_g = rgb[1]
-	var color_b = rgb[2]
-	
-	var bottom_left_x = get_lane_position(lane_start)[0]
-	var top_left_x = get_lane_position(lane_start)[1]
-	var bottom_right_x = get_lane_position(lane_end+1)[0]
-	var top_right_x = get_lane_position(lane_end+1)[1]
-	var lane_data = [bottom_left_x, top_left_x, bottom_right_x, top_right_x, color_r, color_g, color_b, []]
-	
-	for i in range(3, values.size(), 3):
-		var time = values[i]
-		var cc_val = values[i+1]
-		var gradient_int = values[i+2]
-		
-		var alpha = Utils.convert_range(cc_val, 0, 127, 0, Global.MAX_HHPEDAL_ALPHA)/255.0
-		var is_gradient = (gradient_int == 1)
-		
-		var point_data = [time, alpha, is_gradient]
-		lane_data[7].append(point_data)
-	
-	hihatpedal_data.append(lane_data)
-	
-func process_sustain_data(values):
-	var lane_start = values[0]
-	var lane_end = values[1]
-	var color = values[2]
-	var sustain_type = values[3]
-	var rgb = Utils.color_to_rgb(color)
-	var color_r = rgb[0]
-	var color_g = rgb[1]
-	var color_b = rgb[2]
-	
-	var bottom_left_x = get_lane_position(lane_start)[0]
-	var top_left_x = get_lane_position(lane_start)[1]
-	var bottom_right_x = get_lane_position(lane_end+1)[0]
-	var top_right_x = get_lane_position(lane_end+1)[1]
-	var lane_data = [bottom_left_x, top_left_x, bottom_right_x, top_right_x, color_r, color_g, color_b, sustain_type, []]
-	
-	for i in range(4, values.size(), 3):
-		var time = values[i]
-		var cc_val = values[i+1]
-		var gradient_int = values[i+2]
-		
-		var percentage = Utils.get_sustain_size_percentage(cc_val)
-		var is_gradient = (gradient_int == 1)
-		
-		var point_data = [time, percentage, is_gradient]
-		lane_data[8].append(point_data)
-	
-	sustain_data.append(lane_data)
-
-func process_notation_data(values):
-	var category = values[0]
-	var time = values[1]
-	if time == -1:
-		time = null
-	var file_name = values[2]
-	var xMin = values[3] * Global.STAFF_SPACE_HEIGHT + Global.NOTATION_XMIN
-	var yMin = values[4] * Global.STAFF_SPACE_HEIGHT + Global.NOTATION_YMIN
-	var xMax = values[5] * Global.STAFF_SPACE_HEIGHT + Global.NOTATION_XMIN
-	var yMax = values[6] * Global.STAFF_SPACE_HEIGHT + Global.NOTATION_YMIN
-	var misc
-	if values.size() > 7:
-		misc = values[7]
-	
-	notation_data.append([category, time, file_name, xMin, yMin, xMax, yMax, misc])
-
-func generate_valid_note_list():
-	var path = Global.DEBUG_NOTE_LIST_PATH
-	if FileAccess.file_exists(path):
-		return
-	
-	var output = ""
-	
-	var dir = DirAccess.open(Global.GEMS_PATH)
-	dir.list_dir_begin()
-	var file_name = dir.get_next()
-	while file_name != "":
-		if dir.current_is_dir() and not file_name.begins_with("."):
-			output += file_name + "\n"
-		file_name = dir.get_next()
-
-	# Write to a file inside res://
-	var file = FileAccess.open(path, FileAccess.WRITE)
-	file.store_string(output)
-	file.close()
-
-func load_gem_texture(gem, png_name):
-	var path = Global.GEMS_PATH + gem + "/" + png_name + ".png"
-	var tex
-	if Global.DEBUG_GEMS:
-		var image = Image.new()
-		tex = ImageTexture.new()
-		if image.load(path) == OK:
-			tex.set_image(image)
-		else:
-			tex = null
-	else:
-		tex = load(path)
-	return tex
-
-func get_gem_config_setting(gem, header):
-	var gem_data = Global.gem_texture_list[Global.get_gem_index_in_list(gem)]
-	var index
-	
-	if header == "shiftx":
-		index = 5
-	if header == "shifty":
-		index = 6
-	if header == "scale":
-		index = 7
-	if header == "blend_tint":
-		index = 8
-	if header == "blend_lighting":
-		index = 9
-	if header == "zorder":
-		index = 10
-	if header == "color_r":
-		index = 11
-	if header == "color_g":
-		index = 12
-	if header == "color_b":
-		index = 13
-	if header == "alpha":
-		index = 14
-	
-	return gem_data[index]
-			
-func store_gem_textures_in_list():
-	Global.gem_texture_list = []
-	
-	var dir = DirAccess.open(Global.GEMS_PATH)
-	dir.list_dir_begin()
-	var name = dir.get_next()
-	while name != "":
-		if name != "." and name != ".." and dir.current_is_dir():
-			var gem = name
-			
-			var tex_tint = load_gem_texture(gem, "tint")
-			var tex_tint_colored = load_gem_texture(gem, "tint_colored")
-			var tex_base = load_gem_texture(gem, "base")
-			var tex_ring = load_gem_texture(gem, "ring")
-			
-			var config_file_path = Global.get_gem_config_file_path(gem)
-			var config_text = Utils.read_text_file(config_file_path)
-			var positioning_shift_x
-			var positioning_shift_y
-			var positioning_scale
-			var blend_tint
-			var blend_lighting
-			var z_order
-			var color_r
-			var color_g
-			var color_b
-			var color_a
-			
-			var lines = config_text.split("\n")
-			for line in lines:
-				var values = Utils.separate_string(line)
-				if values.size() >= 2:
-					var header = values[0].to_lower()
-					var val = (values[1])
-					if header == "shiftx":
-						positioning_shift_x = float(val)
-					if header == "shifty":
-						positioning_shift_y = float(val)
-					if header == "scale":
-						positioning_scale = float(val)
-					if header == "zorder":
-						z_order = int(val)
-					if header == "blend_tint":
-						blend_tint = Global.get_blending_mode(val)
-					if header == "blend_lighting":
-						blend_lighting = Global.get_blending_mode(val)
-					if header == "alpha":
-						color_a = float(val)
-					if header == "color_r":
-						color_r = float(val)
-					if header == "color_g":
-						color_g = float(val)
-					if header == "color_b":
-						color_b = float(val)
-						
-			Global.gem_texture_list.append([
-				gem, tex_tint, tex_tint_colored, tex_base, tex_ring,
-				positioning_shift_x, positioning_shift_y, positioning_scale,
-				blend_tint, blend_lighting,
-				z_order,
-				color_r, color_g, color_b, color_a
-				])
-
-		name = dir.get_next()
-	dir.list_dir_end()
-			
-func reset_chart_data():
-	note_data.clear()
-	beatline_data.clear()
-	hihatpedal_data.clear()
-	sustain_data.clear()
-	notation_data.clear()
-	#other gameDataTables
-	
-	var text = Utils.read_text_file("res://gamedata.txt")
-	var lines = text.split("\n")
-	var current_section = null
-	for line in lines:
-		line = line.strip_edges()
-		var values = Utils.separate_string(line)
-		
-		if values.size() == 1:
-			current_section = line
-		elif values.size() != 0:
-			if current_section == "GENERAL":
-				process_general_data(values)
-			if current_section == "NOTES":
-				process_note_data(values)
-			if current_section == "BEAT_LINES":
-				process_beatline_data(values)
-			if current_section == "HIHAT_PEDAL":
-				process_hihatpedal_data(values)	
-			if current_section == "SUSTAIN":
-				process_sustain_data(values)
-			#if current_section == "NOTATIONS":
-				#process_notation_data(values)
-	
-	generate_valid_note_list()
-	store_gem_textures_in_list()

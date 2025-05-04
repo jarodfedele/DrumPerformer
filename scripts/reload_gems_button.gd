@@ -1,6 +1,6 @@
 extends Button
 
-@onready var notes = $"../../Highway/Notes"
+@onready var song = get_node("/root/Game/Song")
 
 func _ready():
 	anchor_top = 0
@@ -15,5 +15,4 @@ func _ready():
 	pressed.connect(_on_Button_pressed)
 		
 func _on_Button_pressed():
-	notes.update_textures()
-	notes.spawn_notes()
+	song.load_song(Global.current_song_path)

@@ -10,5 +10,5 @@ func _ready():
 	
 	Global.increment_hud_yPos()
 	
-func _physics_process(delta):
+func _physics_process(_delta):
 	text = "Lighting FPS: " + str(int(Global.lighting_fps))

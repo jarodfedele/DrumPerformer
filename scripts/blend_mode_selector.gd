@@ -1,8 +1,5 @@
 extends OptionButton
 
-const Utils = preload("res://scripts/utils.gd")
-@onready var notes = $"../../../Highway/Notes"
-
 func _ready():
 	anchor_top = 0
 	anchor_bottom = 0
@@ -27,4 +24,4 @@ func _ready():
 func _on_item_selected(index: int):
 	if index > 0:
 		var blend_tint = get_item_text(index)
-		notes.set_gem_property(Global.debug_selected_gem, "blend_tint", blend_tint)
+		Global.debug_set_gem_property(Global.debug_selected_gem, "blend_tint", blend_tint)

@@ -1,7 +1,7 @@
 extends FileDialog
 
+@onready var song = get_node("/root/Game/Song")
 @onready var gem_selector = $"../GemSelector"
-@onready var notes = $"../../Highway/Notes"
 @onready var reload_gems_button = $"../ReloadGemsButton"
 
 func _ready():
@@ -13,6 +13,4 @@ func _on_dir_selected(path):
 	gem_selector.visible = true
 	reload_gems_button.visible = true
 	
-	notes.update_textures()
-	notes.spawn_notes()
-	
+	song.load_song(Global.current_song_path)

@@ -1,6 +1,6 @@
 extends HSlider
 
-@onready var notes = $"../../Highway/Notes"
+@onready var song = get_node("/root/Game/Song")
 
 func _ready():
 	anchor_top = 0
@@ -21,4 +21,4 @@ func _ready():
 
 func _on_value_changed(new_value: float) -> void:
 	Global.lighting_alpha = new_value
-	notes.update_sprites()
+	song.load_song(Global.current_song_path)

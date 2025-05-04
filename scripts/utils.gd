@@ -1,3 +1,5 @@
+extends Node
+
 static func convert_range(val, oldMin, oldMax, newMin, newMax):
 	return ( (val - oldMin) / (oldMax - oldMin) ) * (newMax - newMin) + newMin
 	

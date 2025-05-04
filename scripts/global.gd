@@ -1,5 +1,7 @@
 extends Node
 
+@onready var song = get_node("/root/Game/Song")
+
 const CHART_XMIN = 30
 const CHART_YMIN = 0
 const CHART_XSIZE = 700
@@ -55,7 +57,6 @@ var setting_tint_colored = true
 var lighting_fps = 20
 var lighting_alpha = 255
 var debug_selected_gem = null
-var debug_selected_test_note = null
 var debug_update_notes = true
 var hud_yPos = 0
 const HUD_SLIDER_LENGTH = 200
@@ -64,10 +65,16 @@ const NOTATION_DRAW_AREA_XOFFSET = 64
 const NOTATION_BOUNDARYXMINOFFSET = -12
 const MEASURE_START_SPACING = 12
 var center_staff_line
-var notation_page_list
-var notation_time_list
 
 var gem_texture_list
+
+var current_song_path: String
+var current_gamedata: String
+
+var music_master_volume: float
+var music_drumless_volume: float
+var music_drum_volume: float
+var drum_input_volume: float
 
 func _ready():
 	if not DirAccess.dir_exists_absolute(GEMS_PATH):
@@ -124,3 +131,183 @@ static func set_process_recursive(node, is_enabled):
 			child.set_process(is_enabled)
 			child.set_physics_process(is_enabled)
 			set_process_recursive(child, is_enabled)
+
+static func generate_lighting_frame_list(gem):
+	var path = Global.GEMS_PATH + gem + "/lighting_frames.txt"
+	if FileAccess.file_exists(path):
+		return
+		
+	var output = ""
+	
+	var original_gem_path = Global.ORIGINAL_GEMS_PATH + gem + "/"
+	var dir = DirAccess.open(original_gem_path)
+	if dir:
+		dir.list_dir_begin()
+		var file_name = dir.get_next()
+		while file_name != "":
+			if "lighting" in file_name and file_name.ends_with(".png"):
+				output += original_gem_path + file_name + "\n"
+			file_name = dir.get_next()
+		dir.list_dir_end()
+
+	var file = FileAccess.open(path, FileAccess.WRITE)
+	file.store_string(output)
+	file.close()
+	
+static func store_gem_textures_in_list():
+	Global.gem_texture_list = []
+	
+	var dir = DirAccess.open(Global.GEMS_PATH)
+	dir.list_dir_begin()
+	var name = dir.get_next()
+	while name != "":
+		if name != "." and name != ".." and dir.current_is_dir():
+			var gem = name
+			
+			generate_lighting_frame_list(gem)
+			
+			var tex_tint = Global.load_gem_texture(gem, "tint")
+			var tex_tint_colored = Global.load_gem_texture(gem, "tint_colored")
+			var tex_base = Global.load_gem_texture(gem, "base")
+			var tex_ring = Global.load_gem_texture(gem, "ring")
+			
+			var config_file_path = Global.get_gem_config_file_path(gem)
+			var config_text = Utils.read_text_file(config_file_path)
+			var positioning_shift_x
+			var positioning_shift_y
+			var positioning_scale
+			var blend_tint
+			var blend_lighting
+			var z_order
+			var color_r
+			var color_g
+			var color_b
+			var color_a
+			
+			var lines = config_text.split("\n")
+			for line in lines:
+				var values = Utils.separate_string(line)
+				if values.size() >= 2:
+					var header = values[0].to_lower()
+					var val = (values[1])
+					if header == "shiftx":
+						positioning_shift_x = float(val)
+					if header == "shifty":
+						positioning_shift_y = float(val)
+					if header == "scale":
+						positioning_scale = float(val)
+					if header == "zorder":
+						z_order = int(val)
+					if header == "blend_tint":
+						blend_tint = Global.get_blending_mode(val)
+					if header == "blend_lighting":
+						blend_lighting = Global.get_blending_mode(val)
+					if header == "alpha":
+						color_a = float(val)
+					if header == "color_r":
+						color_r = float(val)
+					if header == "color_g":
+						color_g = float(val)
+					if header == "color_b":
+						color_b = float(val)
+						
+			Global.gem_texture_list.append([
+				gem, tex_tint, tex_tint_colored, tex_base, tex_ring,
+				positioning_shift_x, positioning_shift_y, positioning_scale,
+				blend_tint, blend_lighting,
+				z_order,
+				color_r, color_g, color_b, color_a
+				])
+
+		name = dir.get_next()
+	dir.list_dir_end()
+
+static func load_gem_texture(gem, png_name):
+	var path = Global.GEMS_PATH + gem + "/" + png_name + ".png"
+	var tex
+	if Global.DEBUG_GEMS:
+		var image = Image.new()
+		tex = ImageTexture.new()
+		if image.load(path) == OK:
+			tex.set_image(image)
+		else:
+			tex = null
+	else:
+		if ResourceLoader.exists(path):
+			tex = load(path)
+		
+	return tex
+
+static func get_gem_config_setting(gem, header):
+	var gem_data = Global.gem_texture_list[Global.get_gem_index_in_list(gem)]
+	var index
+	
+	if header == "shiftx":
+		index = 5
+	if header == "shifty":
+		index = 6
+	if header == "scale":
+		index = 7
+	if header == "blend_tint":
+		index = 8
+	if header == "blend_lighting":
+		index = 9
+	if header == "zorder":
+		index = 10
+	if header == "color_r":
+		index = 11
+	if header == "color_g":
+		index = 12
+	if header == "color_b":
+		index = 13
+	if header == "alpha":
+		index = 14
+	
+	return gem_data[index]
+
+func generate_valid_note_list():
+	var path = Global.DEBUG_NOTE_LIST_PATH
+	if FileAccess.file_exists(path):
+		return
+	
+	var output = ""
+	
+	var dir = DirAccess.open(Global.GEMS_PATH)
+	dir.list_dir_begin()
+	var file_name = dir.get_next()
+	while file_name != "":
+		if dir.current_is_dir() and not file_name.begins_with("."):
+			output += file_name + "\n"
+		file_name = dir.get_next()
+
+	# Write to a file inside res://
+	var file = FileAccess.open(path, FileAccess.WRITE)
+	file.store_string(output)
+	file.close()
+
+func debug_set_gem_property(gem, header, val):
+	if not Global.debug_update_notes:
+		return
+		
+	var file_path = Global.get_gem_config_file_path(gem)
+	var config_text = Utils.read_text_file(file_path)
+	var lines = config_text.split("\n")
+	var found_header = false
+	var line_to_add = header + " " + str(val)
+	for i in range(lines.size()):
+		var line = lines[i]
+		if line.substr(0, header.length()+1) == header + " ":
+			found_header = true
+			lines[i] = line_to_add
+			break
+	if not found_header:
+		lines.append(line_to_add)
+		
+	var file = FileAccess.open(file_path, FileAccess.WRITE)
+	if file:
+		for line in lines:
+			if line.strip_edges() != "":
+				file.store_line(line)
+		file.close()
+	
+	song.load_song(Global.current_song_path)

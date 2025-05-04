@@ -1,7 +1,5 @@
 extends Node2D
 
-signal render_complete(texture: Texture2D)
-
 func take_screenshot(index):
 	var viewport := SubViewport.new()
 	viewport.size = Vector2(Global.NOTATION_XSIZE*2, Global.NOTATION_YSIZE)

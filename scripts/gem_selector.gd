@@ -1,14 +1,14 @@
 extends OptionButton
 
-const Utils = preload("res://scripts/utils.gd")
+@onready var song = get_node("/root/Game/Song")
+
 @onready var gem_positioner = $"../GemPositioner"
-@onready var notes = $"../../Highway/Notes"
 
 @onready var shift_x_slider = $"../GemPositioner/ShiftXSlider"
 @onready var shift_y_slider = $"../GemPositioner/ShiftYSlider"
 @onready var scale_slider = $"../GemPositioner/ScaleSlider"
 @onready var tint_alpha_slider = $"../GemPositioner/TintAlphaSlider"
-@onready var file_dialog = $"../FileDialog"
+@onready var blend_mode_selector = $"../GemPositioner/BlendModeSelector"
 
 func _ready():
 	anchor_top = 0
@@ -19,8 +19,8 @@ func _ready():
 	position = Vector2(10, Global.hud_yPos)
 	
 	add_item("Select gem...")
-	var text = Utils.read_text_file("res://note_list.txt")
-	var lines = text.split("\n")
+	var note_list_text = Utils.read_text_file("res://note_list.txt")
+	var lines = note_list_text.split("\n")
 	for line in lines:
 		line = line.strip_edges()
 		if line.length() > 0:
@@ -35,20 +35,24 @@ func _on_item_selected(index: int):
 		Global.debug_selected_gem = null
 		gem_positioner.visible = false
 	else:
-		Global.debug_selected_gem = get_item_text(index)
-		for note in notes.get_children():
-			if note.gem == Global.debug_selected_gem:
-				Global.debug_update_notes = false
-				
-				gem_positioner.visible = true
-				Global.debug_selected_test_note = note
-				shift_x_slider.value = note.positioning_shift_x
-				shift_y_slider.value = note.positioning_shift_y
-				scale_slider.value = note.positioning_scale
-				tint_alpha_slider.value = note.color_a
-				
-				notes.spawn_notes()
-				
-				Global.debug_update_notes = true
-				return
-		gem_positioner.visible = false
+		var gem = get_item_text(index)
+		Global.debug_selected_gem = gem
+		
+		Global.debug_update_notes = false
+		
+		shift_x_slider.value = Global.get_gem_config_setting(gem, "shiftx")
+		shift_y_slider.value = Global.get_gem_config_setting(gem, "shifty")
+		scale_slider.value = Global.get_gem_config_setting(gem, "scale")
+		tint_alpha_slider.value = Global.get_gem_config_setting(gem, "alpha")
+		var blend_tint_index = Global.get_gem_config_setting(gem, "blend_tint")
+		if blend_tint_index:
+			blend_tint_index += 1
+		else:
+			blend_tint_index = 0
+		blend_mode_selector.selected = blend_tint_index
+		
+		Global.debug_update_notes = true
+		
+		song.load_song(Global.current_song_path)
+		
+		gem_positioner.visible = true

@@ -1,6 +1,6 @@
 extends CheckBox
 
-@onready var notes = $"../../Highway/Notes"
+@onready var song = get_node("/root/Game/Song")
 
 func _ready():
 	anchor_top = 0
@@ -16,6 +16,6 @@ func _ready():
 	
 	Global.increment_hud_yPos()
 	
-func _on_check_button_toggled(button_pressed: bool) -> void:
+func _on_check_button_toggled(_button_pressed: bool) -> void:
 	Global.setting_tint_colored = not Global.setting_tint_colored
-	notes.update_sprites()
+	song.load_song(Global.current_song_path)

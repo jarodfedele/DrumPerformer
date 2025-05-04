@@ -1,7 +1,5 @@
 extends HSlider
 
-@onready var notes = $"../../../Highway/Notes"
-
 func _ready():
 	anchor_top = 0
 	anchor_bottom = 0
@@ -18,4 +16,4 @@ func _ready():
 	connect("value_changed", Callable(self, "_on_value_changed"))
 	
 func _on_value_changed(new_value: float) -> void:
-	notes.set_gem_property(Global.debug_selected_gem, "shifty", new_value)
+	Global.debug_set_gem_property(Global.debug_selected_gem, "shifty", new_value)

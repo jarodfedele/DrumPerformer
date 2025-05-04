@@ -12,5 +12,5 @@ func _ready():
 	
 	Global.increment_hud_yPos()
 	
-func _physics_process(delta):
+func _physics_process(_delta):
 	text = "Tint Alpha: " + str(int(slider.value))

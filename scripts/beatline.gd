@@ -2,8 +2,6 @@ extends Line2D
 
 @onready var highway = get_parent().get_parent()
 
-const Utils = preload("res://scripts/utils.gd")
-
 var time : float
 var color_r : int
 var color_g : int

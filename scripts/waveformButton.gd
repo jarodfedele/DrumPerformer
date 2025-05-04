@@ -1,9 +1,8 @@
 extends TextureButton
 
-@onready var audio_player = get_node("../AudioStreamPlayer")
-@onready var highway = $"../../Highway"
+@onready var song_audio_player = get_node("/root/Game/AudioManager/SongAudioPlayer")
+@onready var song = get_node("/root/Game/Song")
 
-const Utils = preload("res://scripts/utils.gd")
 var dragging = false
 
 func _ready():
@@ -19,20 +18,19 @@ func update_seek(click_pos):
 	
 	var percentage = Utils.convert_range(global_click_pos.x, button_pos.x, button_pos.x+button_size.x, 0, 1)
 	
-	var length = audio_player.stream.get_length()
+	var length = song_audio_player.stream.get_length()
 	var seek_time = percentage * length
 	seek_time = clamp(seek_time, 0.0, length)
 	
 	var progress = clamp(seek_time / length, 0.0, 1.0)
-	var seekXPos = size.x * progress
 	
-	var paused_state = (audio_player.stream_paused or not audio_player.playing)
-	audio_player.stream_paused = false
-	audio_player.play()
-	audio_player.seek(seek_time)
-	audio_player.stream_paused = paused_state
+	var paused_state = (song_audio_player.stream_paused or not song_audio_player.playing)
+	song_audio_player.stream_paused = false
+	song_audio_player.play()
+	song_audio_player.seek(seek_time)
+	song_audio_player.stream_paused = paused_state
 
-	highway.sync_song_time(seek_time)
+	song.sync_song_time(seek_time)
 		
 func _gui_input(event):
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT: #event.pressed is click
