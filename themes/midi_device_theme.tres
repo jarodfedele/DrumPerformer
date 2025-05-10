@@ -1,0 +1,16 @@
+[gd_resource type="Theme" load_steps=5 format=3 uid="uid://bf7m1hf7sewep"]
+
+[ext_resource type="FontFile" uid="uid://co274v0pociow" path="res://fonts/Kalam-Bold.ttf" id="1_vd675"]
+[ext_resource type="FontFile" uid="uid://eouk7ro5ogf" path="res://fonts/Roboto/Roboto-VariableFont_wdth,wght.ttf" id="2_cxyo3"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_cxyo3"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_vd675"]
+bg_color = Color(0.0590009, 0.164344, 0.192096, 1)
+
+[resource]
+Button/fonts/font = ExtResource("1_vd675")
+Button/styles/normal = SubResource("StyleBoxFlat_cxyo3")
+OptionButton/font_sizes/font_size = 16
+OptionButton/fonts/font = ExtResource("2_cxyo3")
+OptionButton/styles/normal = SubResource("StyleBoxFlat_vd675")

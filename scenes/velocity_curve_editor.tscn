@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=3 uid="uid://qa0n50cb3mu8"]
+
+[ext_resource type="Texture2D" uid="uid://qxcff034f5v1" path="res://textures/velocity_curve_background.png" id="1_te7nq"]
+[ext_resource type="Script" uid="uid://b2fril75ifikv" path="res://scripts/velocity_curve_editor.gd" id="2_1cvh0"]
+
+[node name="TextureRect" type="TextureRect"]
+mouse_filter = 0
+texture = ExtResource("1_te7nq")
+expand_mode = 1
+script = ExtResource("2_1cvh0")

@@ -1,0 +1,71 @@
+[gd_scene load_steps=4 format=3 uid="uid://ia775m2g5opk"]
+
+[ext_resource type="Script" uid="uid://bt5uvelnilu0w" path="res://scripts/drum_kit_editor.gd" id="1_tye0h"]
+[ext_resource type="Theme" uid="uid://bsmn25a76cmc1" path="res://themes/main_menu_theme.tres" id="2_0lac2"]
+[ext_resource type="PackedScene" uid="uid://dlveaao0ahvmv" path="res://scenes/highway.tscn" id="2_847pm"]
+
+[node name="DrumKitEditor" type="Node2D"]
+script = ExtResource("1_tye0h")
+
+[node name="Highway" parent="." instance=ExtResource("2_847pm")]
+
+[node name="MIDIDevicePanelContainer" type="PanelContainer" parent="."]
+offset_left = 25.0
+offset_top = 675.0
+offset_right = 85.0
+offset_bottom = 735.0
+theme = ExtResource("2_0lac2")
+
+[node name="MIDIDeviceVBoxContainer" type="VBoxContainer" parent="MIDIDevicePanelContainer"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="."]
+custom_minimum_size = Vector2(800, 575)
+offset_left = 775.0
+offset_top = 25.0
+offset_right = 1575.0
+offset_bottom = 600.0
+
+[node name="PanelContainer" type="PanelContainer" parent="ScrollContainer"]
+layout_mode = 2
+theme = ExtResource("2_0lac2")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ScrollContainer/PanelContainer"]
+layout_mode = 2
+
+[node name="DrumKitPanelContainer" type="PanelContainer" parent="ScrollContainer/PanelContainer/VBoxContainer"]
+layout_mode = 2
+theme = ExtResource("2_0lac2")
+
+[node name="DrumKitVBoxContainer" type="VBoxContainer" parent="ScrollContainer/PanelContainer/VBoxContainer/DrumKitPanelContainer"]
+layout_mode = 2
+
+[node name="SnapCheckbox" type="CheckBox" parent="."]
+offset_left = 559.0
+offset_top = 52.0
+offset_right = 698.0
+offset_bottom = 83.0
+text = "Snap to lanes?"
+
+[node name="LaneCountContainer" type="HBoxContainer" parent="."]
+offset_left = 559.0
+offset_top = 90.0
+offset_right = 628.0
+offset_bottom = 130.0
+
+[node name="ArrowUpButton" type="Button" parent="LaneCountContainer"]
+custom_minimum_size = Vector2(30, 0)
+layout_mode = 2
+text = "^"
+
+[node name="LaneCountLabel" type="Label" parent="LaneCountContainer"]
+layout_mode = 2
+
+[node name="ArrowDownButton" type="Button" parent="LaneCountContainer"]
+custom_minimum_size = Vector2(30, 0)
+layout_mode = 2
+text = "v"
+
+[connection signal="pressed" from="SnapCheckbox" to="." method="_on_snap_checkbox_pressed"]
+[connection signal="pressed" from="LaneCountContainer/ArrowUpButton" to="." method="_on_arrow_up_button_pressed"]
+[connection signal="pressed" from="LaneCountContainer/ArrowDownButton" to="." method="_on_arrow_down_button_pressed"]

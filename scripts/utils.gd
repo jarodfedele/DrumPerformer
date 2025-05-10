@@ -146,3 +146,97 @@ static func set_sprite_position(sprite, xMin, yMin, xMax, yMax):
 	
 	sprite.position = Vector2(xCenter, yCenter)
 	sprite.scale = Vector2(desired_width / tex_width, desired_height / tex_height)
+	
+static func load_json_file(path):
+	var file = FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		push_error("Failed to open file: " + path)
+		return null
+	
+	var json_text = file.get_as_text()
+	file.close()
+	
+	var json = JSON.new()
+	var result = json.parse(json_text)
+	
+	if result != OK:
+		push_error("JSON parse error at line %d: %s" % [json.get_error_line(), json.get_error_message()])
+		return null
+	
+	return json.get_data()
+
+static func convert_floats_to_ints(value):
+	if typeof(value) == TYPE_FLOAT:
+		if is_equal_approx(value, floor(value)):
+			return int(value)
+		return value
+	elif typeof(value) == TYPE_ARRAY:
+		var new_array := []
+		for item in value:
+			new_array.append(convert_floats_to_ints(item))
+		return new_array
+	elif typeof(value) == TYPE_DICTIONARY:
+		var new_dict := {}
+		for key in value.keys():
+			new_dict[key] = convert_floats_to_ints(value[key])
+		return new_dict
+	else:
+		return value
+		
+static func save_json_file(path: String, data: Variant) -> void:
+	var file = FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		push_error("Failed to open file for writing: " + path)
+		return
+	
+	var cleaned_data = convert_floats_to_ints(data)
+	var json_string = JSON.stringify(cleaned_data, "\t")  # Pretty format
+	file.store_string(json_string)
+	file.close()
+
+static func generate_guid() -> String:
+	var hex = "0123456789abcdef"
+	var guid = ""
+	
+	for i in range(36):
+		match i:
+			8, 13, 18, 23:
+				guid += "-"
+			14:
+				guid += "4"  # UUID version 4
+			19:
+				var r = randi() % 16
+				guid += ["8", "9", "a", "b"][r % 4]  # UUID variant
+			_:
+				guid += hex[randi() % 16]
+	
+	return guid
+
+static func count_all_nodes(node: Node) -> int:
+	var count = 1  # Count the current node
+	for child in node.get_children():
+		count += count_all_nodes(child)
+	return count
+
+func increment_value(val: int, ticks: int, min_val: int, max_val: int) -> int:
+	var direction = ticks / abs(ticks)
+	for i in range(abs(ticks)):
+		val += direction
+		if val > max_val:
+			val = min_val
+		elif val < min_val:
+			val = max_val
+	return val
+
+func get_closest_index(x: float, values: Array) -> int:
+	var closest_index = 0
+	var min_dist = abs(x - values[0])
+	for i in range(1, values.size()):
+		var dist = abs(x - values[i])
+		if dist < min_dist:
+			closest_index = i
+			min_dist = dist
+	return closest_index
+	
+func get_closest_value(x: float, values: Array) -> float:
+	return values[get_closest_index(x, values)]

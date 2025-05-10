@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://djcfrirqotes8"]
+
+[ext_resource type="Theme" uid="uid://bf7m1hf7sewep" path="res://themes/midi_device_theme.tres" id="1_w30cy"]
+
+[node name="PadInstanceVBoxContainer" type="VBoxContainer"]
+offset_right = 40.0
+offset_bottom = 40.0
+theme = ExtResource("1_w30cy")

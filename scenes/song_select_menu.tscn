@@ -1,0 +1,3 @@
+[gd_scene format=3 uid="uid://d1b6ws7pv2dnd"]
+
+[node name="SongSelectMenu" type="Node2D"]

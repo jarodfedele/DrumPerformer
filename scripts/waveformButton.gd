@@ -1,7 +1,7 @@
 extends TextureButton
 
 @onready var song_audio_player = get_node("/root/Game/AudioManager/SongAudioPlayer")
-@onready var song = get_node("/root/Game/Song")
+@onready var song = get_parent().get_parent()
 
 var dragging = false
 
@@ -33,7 +33,7 @@ func update_seek(click_pos):
 	song.sync_song_time(seek_time)
 		
 func _gui_input(event):
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT: #event.pressed is click
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			dragging = true
 			update_seek(event.position)

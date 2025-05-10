@@ -2,33 +2,12 @@
 
 [ext_resource type="Script" uid="uid://ct3ayso0wkd1f" path="res://scripts/note.gd" id="1_t3yvt"]
 [ext_resource type="Shader" uid="uid://doh0r3x10pmft" path="res://shaders/color_blender.gdshader" id="2_1bnk6"]
+[ext_resource type="Script" uid="uid://dpim4xc8p20og" path="res://scripts/note_base.gd" id="3_43c4j"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_43c4j"]
 shader = ExtResource("2_1bnk6")
 shader_parameter/tint_color = Vector4(0, 0, 0, 0)
 shader_parameter/blending_mode = 0
-
-[sub_resource type="GDScript" id="GDScript_1bnk6"]
-script/source = "extends Sprite2D
-
-func _input_event(viewport, event, shape_idx):
-	print(\"Sprite2D was left-clicked!\")
-	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-			print(\"Sprite2D was left-clicked!\")
-		
-func _gui_input(event):
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		print(\"HERE\")
-		#if event.pressed:
-			#dragging = true
-			#update_seek(event.position)
-		#else:
-			#dragging = false
-		#
-	#if event is InputEventMouseMotion and dragging:
-		#update_seek(event.position)
-"
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_1bnk6"]
 
@@ -42,7 +21,7 @@ material = SubResource("ShaderMaterial_43c4j")
 material = SubResource("ShaderMaterial_43c4j")
 
 [node name="Base" type="Sprite2D" parent="."]
-script = SubResource("GDScript_1bnk6")
+script = ExtResource("3_43c4j")
 
 [node name="Ring" type="Sprite2D" parent="."]
 

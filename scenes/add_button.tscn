@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3 uid="uid://crkwnmrs63x7r"]
+
+[ext_resource type="Theme" uid="uid://bf7m1hf7sewep" path="res://themes/midi_device_theme.tres" id="1_hyhx8"]
+[ext_resource type="Script" uid="uid://csiwjmmpot28n" path="res://scripts/add_button.gd" id="2_lsxaa"]
+
+[node name="Button" type="Button"]
+custom_minimum_size = Vector2(30, 30)
+offset_right = 30.0
+offset_bottom = 30.0
+size_flags_horizontal = 0
+theme = ExtResource("1_hyhx8")
+text = "+"
+script = ExtResource("2_lsxaa")

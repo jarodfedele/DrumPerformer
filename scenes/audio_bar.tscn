@@ -1,0 +1,32 @@
+[gd_scene load_steps=7 format=3 uid="uid://c18e0upa0wks"]
+
+[ext_resource type="Texture2D" uid="uid://dnwfeaf523a4p" path="res://assets/other/hihatfoot.png" id="1_54ras"]
+[ext_resource type="Script" uid="uid://vktnnrq1qmwl" path="res://scripts/waveformButton.gd" id="2_nu0nq"]
+[ext_resource type="Texture2D" uid="uid://diikdhsnib86m" path="res://assets/other/play_button.png" id="3_kixu7"]
+[ext_resource type="Script" uid="uid://chpn00n6q1wwd" path="res://scripts/play_button.gd" id="4_77myw"]
+[ext_resource type="Script" uid="uid://b360ahqvgh5o5" path="res://scripts/seek_line.gd" id="5_wkvwj"]
+[ext_resource type="Script" uid="uid://c7a2xdpolqtbv" path="res://scripts/timecode.gd" id="6_hg2ti"]
+
+[node name="AudioBar" type="Node2D"]
+
+[node name="WaveformButton" type="TextureButton" parent="."]
+texture_normal = ExtResource("1_54ras")
+ignore_texture_size = true
+stretch_mode = 0
+script = ExtResource("2_nu0nq")
+
+[node name="PlayButton" type="TextureButton" parent="."]
+texture_normal = ExtResource("3_kixu7")
+ignore_texture_size = true
+stretch_mode = 0
+script = ExtResource("4_77myw")
+
+[node name="SeekLine" type="Line2D" parent="."]
+width = 4.0
+default_color = Color(0.236633, 0.481223, 0.240062, 1)
+script = ExtResource("5_wkvwj")
+
+[node name="Timecode" type="Label" parent="."]
+offset_right = 40.0
+offset_bottom = 23.0
+script = ExtResource("6_hg2ti")

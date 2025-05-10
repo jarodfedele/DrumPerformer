@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://bw4j04hrqcc5l"]
+
+[ext_resource type="Script" uid="uid://dpbalxu2f80i6" path="res://scripts/property_check_box.gd" id="1_rbf6v"]
+
+[node name="CheckBox" type="CheckBox"]
+custom_minimum_size = Vector2(40, 0)
+offset_right = 24.0
+offset_bottom = 24.0
+script = ExtResource("1_rbf6v")

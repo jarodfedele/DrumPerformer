@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://j8l4b4q305ee"]
+
+[ext_resource type="Script" uid="uid://dwets41vk6p6a" path="res://scripts/option_button.gd" id="1_o6sod"]
+
+[node name="OptionButton" type="OptionButton"]
+custom_minimum_size = Vector2(50, 0)
+offset_right = 32.0
+offset_bottom = 20.0
+script = ExtResource("1_o6sod")

@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://b5dyfh3chyre0"]
+
+[ext_resource type="Theme" uid="uid://bf7m1hf7sewep" path="res://themes/midi_device_theme.tres" id="1_7gg5c"]
+
+[node name="HBoxContainer" type="HBoxContainer"]
+offset_right = 300.0
+offset_bottom = 27.0
+theme = ExtResource("1_7gg5c")

@@ -1,0 +1,17 @@
+[gd_scene load_steps=3 format=3 uid="uid://ia775m2g5opk"]
+
+[ext_resource type="Script" uid="uid://bt5uvelnilu0w" path="res://scripts/drum_kit_editor.gd" id="1_tye0h"]
+[ext_resource type="Theme" uid="uid://bsmn25a76cmc1" path="res://themes/main_menu_theme.tres" id="2_0lac2"]
+
+[node name="DrumKitEditor" type="Node2D"]
+script = ExtResource("1_tye0h")
+
+[node name="MIDIDevicePanelContainer" type="PanelContainer" parent="."]
+offset_left = 25.0
+offset_top = 200.0
+offset_right = 85.0
+offset_bottom = 260.0
+theme = ExtResource("2_0lac2")
+
+[node name="MIDIDeviceVBoxContainer" type="VBoxContainer" parent="MIDIDevicePanelContainer"]
+layout_mode = 2

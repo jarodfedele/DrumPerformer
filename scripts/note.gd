@@ -1,17 +1,18 @@
 extends Node2D
 
-@onready var highway = get_parent().get_parent()
-
 const LightingFrameScene = preload("res://scenes/lighting_frame.tscn")
 
 var time : float
 var gem : String
 var gem_path : String
 var original_gem_path : String
-var color_r : int
-var color_g : int
-var color_b : int
-var color_a = 255
+var color_r : float
+var color_g : float
+var color_b : float
+var color_a : float
+var grayscale = false
+var normalized_position : float
+var layer : int
 var lane_start : int
 var lane_end : int
 var velocity : int
@@ -21,12 +22,15 @@ var positioning_scale : float
 var blend_tint : int
 var blend_lighting : int
 
+var pad_index
+
 var frames
 
 var aspect_ratio : float
 
 var lighting_frame_file_name = "lighting_frames.txt"
 
+@onready var highway = get_parent().get_parent()
 @onready var tint = $Tint
 @onready var tint_colored = $TintColored
 @onready var base = $Base
@@ -38,6 +42,18 @@ func set_texture(scene, list_index):
 	if tex:
 		scene.texture = tex
 
+func get_texture_size():
+	return base.texture.get_size()
+
+func set_grayscale(is_grayscale):
+	if grayscale != is_grayscale:
+		grayscale = is_grayscale
+		set_sprite()
+
+func to_grayscale(color: Color) -> Color:
+	var luminance = 0.299 * color.r + 0.587 * color.g + 0.114 * color.b
+	return Color(luminance, luminance, luminance, color.a)
+			
 func set_sprite():
 	set_texture(tint, 1)
 	set_texture(tint_colored, 2)
@@ -49,21 +65,30 @@ func set_sprite():
 
 	aspect_ratio = base.texture.get_width()/base.texture.get_height()
 	
+	var fade_factor
+	
+	var tint_color = Color(color_r, color_g, color_b, color_a)
+	if grayscale:
+		tint_color = to_grayscale(tint_color)
+	
 	if tint_colored.texture and Global.setting_tint_colored:
 		tint.visible = false
 		tint_colored.visible = true
 		tint_colored.material = tint_colored.material.duplicate()
-		tint_colored.material.set_shader_parameter("tint_color", Color(color_r/255.0, color_g/255.0, color_b/255.0, color_a/255.0))
+		tint_colored.material.set_shader_parameter("tint_color", tint_color)
 		tint_colored.material.set_shader_parameter("blending_mode", blend_tint)
 	else:
 		tint.visible = true
 		tint_colored.visible = false
 		tint.material = tint.material.duplicate()
-		tint.material.set_shader_parameter("tint_color", Color(color_r/255.0, color_g/255.0, color_b/255.0, color_a/255.0))
+		tint.material.set_shader_parameter("tint_color", tint_color)
 		tint.material.set_shader_parameter("blending_mode", blend_tint)
 	
-	ring.modulate = Color8(color_r, color_g, color_b)
-	
+	var ring_color = Color(color_r, color_g, color_b)
+	if grayscale:
+		ring_color = to_grayscale(ring_color)
+	ring.modulate = ring_color
+
 	frames = SpriteFrames.new()
 	var text = Utils.read_text_file(original_gem_path + lighting_frame_file_name)
 	var lines = text.split("\n")
@@ -79,7 +104,19 @@ func set_sprite():
 	frames.set_animation_speed("default", Global.lighting_fps)
 	
 	lighting.modulate = Color(1, 1, 1, Global.lighting_alpha/255.0)
-		
+	
+	lighting.visible = !grayscale
+
+func get_collision_bounds():
+	var note_size = get_texture_size() * scale
+	note_size.x *= 0.7
+	note_size.y *= 0.9
+	var xMin = position.x-note_size.x*0.5
+	var yMin = position.y-note_size.y*0.5
+	var xMax = position.x+note_size.x*0.5
+	var yMax = position.y+note_size.y*0.5
+	return [xMin, yMin, xMax, yMax]
+
 func update_position():
 	var is_visible = (time >= highway.visible_time_min and time <= highway.visible_time_max)
 	
@@ -87,15 +124,21 @@ func update_position():
 	set_process(is_visible)
 	
 	if is_visible:
-		var lane_start_x1 = highway.get_lane_position(lane_start)[0]
-		var lane_start_x2 = highway.get_lane_position(lane_start)[1]
-		var lane_end_x1 = highway.get_lane_position(lane_end+1)[0]
-		var lane_end_x2 = highway.get_lane_position(lane_end+1)[1]
+		var lane_bounds = highway.get_lane_bounds(normalized_position)
+		var lane_start_x1 = lane_bounds[0]
+		var lane_start_x2 = lane_bounds[1]
+		var lane_end_x1 = lane_bounds[2]
+		var lane_end_x2 = lane_bounds[3]
+		
+		#var lane_start_x1 = highway.get_lane_position(lane_start)[0]
+		#var lane_start_x2 = highway.get_lane_position(lane_start)[1]
+		#var lane_end_x1 = highway.get_lane_position(lane_end+1)[0]
+		#var lane_end_x2 = highway.get_lane_position(lane_end+1)[1]
 		
 		var note_yMax = highway.get_y_pos_from_time(time, false)
 
-		var note_xMin = Utils.get_x_at_y(lane_start_x2, Global.CHART_YMIN, lane_start_x1, Global.CHART_YMAX, note_yMax)
-		var note_xMax = Utils.get_x_at_y(lane_end_x2, Global.CHART_YMIN, lane_end_x1, Global.CHART_YMAX, note_yMax)
+		var note_xMin = Utils.get_x_at_y(lane_start_x2, Global.HIGHWAY_YMIN, lane_start_x1, Global.HIGHWAY_YMAX, note_yMax)
+		var note_xMax = Utils.get_x_at_y(lane_end_x2, Global.HIGHWAY_YMIN, lane_end_x1, Global.HIGHWAY_YMAX, note_yMax)
 		
 		var note_xSize = note_xMax - note_xMin
 

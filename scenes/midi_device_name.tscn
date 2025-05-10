@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3 uid="uid://bvs5mlom0doxg"]
+
+[ext_resource type="Script" uid="uid://ds4lgupvd8cnt" path="res://scripts/midi_device_name.gd" id="1_6d8pq"]
+
+[node name="LineEdit" type="LineEdit"]
+custom_minimum_size = Vector2(150, 0)
+script = ExtResource("1_6d8pq")

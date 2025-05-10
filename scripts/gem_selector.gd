@@ -43,7 +43,7 @@ func _on_item_selected(index: int):
 		shift_x_slider.value = Global.get_gem_config_setting(gem, "shiftx")
 		shift_y_slider.value = Global.get_gem_config_setting(gem, "shifty")
 		scale_slider.value = Global.get_gem_config_setting(gem, "scale")
-		tint_alpha_slider.value = Global.get_gem_config_setting(gem, "alpha")
+		tint_alpha_slider.value = Global.get_gem_config_setting(gem, "color_a")
 		var blend_tint_index = Global.get_gem_config_setting(gem, "blend_tint")
 		if blend_tint_index:
 			blend_tint_index += 1

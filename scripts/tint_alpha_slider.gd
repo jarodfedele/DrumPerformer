@@ -16,4 +16,4 @@ func _ready():
 	connect("value_changed", Callable(self, "_on_value_changed"))
 	
 func _on_value_changed(new_value: float) -> void:
-	Global.debug_set_gem_property(Global.debug_selected_gem, "alpha", new_value)
+	Global.debug_set_gem_property(Global.debug_selected_gem, "color_a", new_value)

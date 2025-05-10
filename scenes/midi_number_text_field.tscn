@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://rnl6701odfx7"]
+
+[ext_resource type="Script" uid="uid://bsehe0pgvlfxb" path="res://scripts/midi_number_text_field.gd" id="1_dcnrb"]
+
+[node name="LineEdit" type="LineEdit"]
+custom_minimum_size = Vector2(30, 0)
+offset_right = 68.5625
+offset_bottom = 31.0
+script = ExtResource("1_dcnrb")

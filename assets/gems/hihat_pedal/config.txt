@@ -3,3 +3,7 @@ scale 1.13
 zorder 1
 blend_tint linear_burn
 blend_lighting linear_dodge
+color_r 1
+color_g 0.95
+color_b 0
+color_a 1

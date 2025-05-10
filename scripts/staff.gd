@@ -1,7 +1,7 @@
 extends Node2D
 
-@onready var song = get_node("/root/Game/Song") #TODO: programatically generate?
-@onready var highway = get_node("/root/Game/Song/Highway") #TODO: programatically generate?
+@onready var song = get_parent()
+@onready var highway = $"../Highway"
 
 @onready var background = $Background
 @onready var notation_pages = $NotationPages

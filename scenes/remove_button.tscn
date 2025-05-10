@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://c6nuukh3s6oya"]
+
+[ext_resource type="Script" uid="uid://cqan3uurk5pn0" path="res://scripts/remove_button.gd" id="1_be47r"]
+
+[node name="Button" type="Button"]
+custom_minimum_size = Vector2(30, 0)
+offset_right = 8.0
+offset_bottom = 8.0
+text = "-"
+script = ExtResource("1_be47r")

@@ -22,8 +22,8 @@ func update_position():
 
 		var yPos = highway.get_y_pos_from_time(time, false)
 
-		var xMin = Utils.get_x_at_y(lane_start_x2, Global.CHART_YMIN, lane_start_x1, Global.CHART_YMAX, yPos)
-		var xMax = Utils.get_x_at_y(lane_end_x2, Global.CHART_YMIN, lane_end_x1, Global.CHART_YMAX, yPos)
+		var xMin = Utils.get_x_at_y(lane_start_x2, Global.HIGHWAY_YMIN, lane_start_x1, Global.HIGHWAY_YMAX, yPos)
+		var xMax = Utils.get_x_at_y(lane_end_x2, Global.HIGHWAY_YMIN, lane_end_x1, Global.HIGHWAY_YMAX, yPos)
 		
 		points = [Vector2(xMin, yPos), Vector2(xMax, yPos)]
 		width = thickness

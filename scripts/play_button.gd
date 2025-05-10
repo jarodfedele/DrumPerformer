@@ -1,7 +1,7 @@
 extends TextureButton
 
-@onready var song = get_node("/root/Game/Song")
 @onready var song_audio_player = get_node("/root/Game/AudioManager/SongAudioPlayer")
+@onready var song = get_parent().get_parent()
 
 func _ready():
 	position = Vector2(Global.PLAYBUTTON_XMIN, Global.PLAYBUTTON_YMIN)

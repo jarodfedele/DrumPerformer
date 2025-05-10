@@ -1,9 +1,14 @@
 extends Node2D
 
+const HighwayScene = preload("res://scenes/highway.tscn")
+const StaffScene = preload("res://scenes/staff.tscn")
+const AudioBarScene = preload("res://scenes/audio_bar.tscn")
+
 @onready var song_audio_player = get_node("/root/Game/AudioManager/SongAudioPlayer")
-@onready var highway = get_node("/root/Game/Song/Highway") #TODO: programatically generate?
-@onready var staff = get_node("/root/Game/Song/Staff")
-@onready var timecode = get_node("/root/Game/Song/AudioBar/Timecode")
+var highway
+var staff
+var audio_bar
+var timecode
 
 var note_data: Array = []
 var beatline_data: Array = []
@@ -19,6 +24,9 @@ var audio_frame_count = 0
 
 var loaded = false
 
+func update_contents():
+	load_song("res://test_song/")
+	
 func sync_song_time(time):
 	audio_play_start_time = time
 	audio_frame_count = 0
@@ -37,7 +45,7 @@ func _physics_process(delta):
 			timecode.text = Utils.seconds_to_min_sec_string(current_song_time) + "/" + Utils.seconds_to_min_sec_string(length)
 		
 		#update visible game contents
-		highway.update_contents()
+		highway.update_contents(current_song_time)
 		staff.update_contents()
 		
 		audio_frame_count += 1
@@ -47,7 +55,18 @@ func set_audio_players_to_song():
 	song_audio_player.stream = audio_file
 	
 func load_song(song_path):
+	for child in get_children():
+		child.queue_free()
+	
 	loaded = false
+	
+	highway = HighwayScene.instantiate()
+	staff = StaffScene.instantiate()
+	audio_bar = AudioBarScene.instantiate()
+	
+	add_child(highway)
+	add_child(staff)
+	add_child(audio_bar)
 	
 	if song_path != Global.current_song_path:
 		Global.current_song_path = song_path
@@ -55,21 +74,15 @@ func load_song(song_path):
 	
 	Global.current_gamedata = Utils.read_text_file(song_path + "gamedata.txt")
 	
-	highway.reset_lane_position_list() #TODO: dependent on user profile
-	
-	highway.draw_background()
-	highway.draw_border()
-	highway.draw_cover()
-	
 	staff.draw_background()
 	staff.draw_cover()
 	
 	reset_chart_data()
 	
-	highway.populate_beat_lines()
+	highway.populate_beat_lines(beatline_data)
 	highway.populate_hihat_pedal_overlays()
 	highway.populate_sustain_overlays()
-	highway.populate_notes()
+	highway.populate_notes(note_data)
 	
 	staff.draw_clef()
 	staff.draw_staff_lines()
@@ -96,12 +109,9 @@ func process_note_data(values):
 	var lane_end = values[4]
 	var velocity = values[5]
 	var rgb = Utils.color_to_rgb(color)
-	var color_r = rgb[0]
-	var color_g = rgb[1]
-	var color_b = rgb[2]
 	
 	if gem != "none":
-		note_data.insert(0, [time, gem, color_r, color_g, color_b, lane_start, lane_end, velocity])
+		note_data.append([time, gem, lane_start, lane_end, velocity])
 
 func process_beatline_data(values):
 	var time = values[0]
@@ -195,8 +205,6 @@ func reset_chart_data():
 	notation_data.clear()
 	#other gameDataTables
 	
-	Global.store_gem_textures_in_list() #TODO: move to global when done debugging
-	
 	var text = Global.current_gamedata
 	var lines = text.split("\n")
 	var current_section = null
@@ -217,7 +225,7 @@ func reset_chart_data():
 				process_hihatpedal_data(values)	
 			if current_section == "SUSTAIN":
 				process_sustain_data(values)
-			if current_section == "NOTATIONS":
-				process_notation_data(values)
+			#if current_section == "NOTATIONS":
+				#process_notation_data(values)
 	
 	Global.generate_valid_note_list()

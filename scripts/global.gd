@@ -2,25 +2,25 @@ extends Node
 
 @onready var song = get_node("/root/Game/Song")
 
-const CHART_XMIN = 30
-const CHART_YMIN = 0
-const CHART_XSIZE = 700
-const CHART_YSIZE = 600
-const CHART_XMAX = CHART_XMIN + CHART_XSIZE 
-const CHART_YMAX = CHART_YMIN + CHART_YSIZE
-const CHART_YFADESTART = CHART_YMIN + CHART_YSIZE*0.2
+const HIGHWAY_XMIN = 30
+const HIGHWAY_YMIN = 0
+const HIGHWAY_XSIZE = 700
+const HIGHWAY_YSIZE = 600
+const HIGHWAY_XMAX = HIGHWAY_XMIN + HIGHWAY_XSIZE 
+const HIGHWAY_YMAX = HIGHWAY_YMIN + HIGHWAY_YSIZE
+const HIGHWAY_YFADESTART = HIGHWAY_YMIN + HIGHWAY_YSIZE*0.2
 
 const STAFF_SPACE_HEIGHT = 10
 
 const NOTATION_XMIN = 100
-const NOTATION_YMIN = CHART_YMAX + 6
+const NOTATION_YMIN = HIGHWAY_YMAX + 6
 const NOTATION_XSIZE = 1166
 const NOTATION_YSIZE = STAFF_SPACE_HEIGHT * 24
 const NOTATION_XMAX = NOTATION_XMIN + NOTATION_XSIZE
 const NOTATION_YMAX = NOTATION_YMIN + NOTATION_YSIZE
 
-const AUDIOBAR_XMIN = CHART_XMIN + CHART_XSIZE*0.7
-const AUDIOBAR_YMIN = CHART_YMIN + 20
+const AUDIOBAR_XMIN = HIGHWAY_XMIN + HIGHWAY_XSIZE*0.7
+const AUDIOBAR_YMIN = HIGHWAY_YMIN + 20
 const AUDIOBAR_XSIZE = 740
 const AUDIOBAR_YSIZE = 60
 const AUDIOBAR_XMAX = AUDIOBAR_XMIN + AUDIOBAR_XSIZE 
@@ -47,11 +47,15 @@ const MAX_HHPEDAL_ALPHA = 125
 const MIN_VELOCITY_SIZE_PERCENTAGE = 0.4
 
 const STAFF_BACKGROUND_COLOR = Color8(255, 255, 200)
+
+var USER_PATH = "C:/Users/jarod/Desktop/DrumPerformer/"
 const ORIGINAL_GEMS_PATH = "res://assets/gems/"
 var GEMS_PATH = ORIGINAL_GEMS_PATH
 var DEBUG_GEMS = false
 const NOTATIONS_PATH = "res://assets/notations/"
 const DEBUG_NOTE_LIST_PATH = "res://note_list.txt"
+
+var current_profile
 
 var setting_tint_colored = true
 var lighting_fps = 20
@@ -76,7 +80,24 @@ var music_drumless_volume: float
 var music_drum_volume: float
 var drum_input_volume: float
 
+var midi_input_count = 0
+
+var config_path = USER_PATH + "config/"
+var drum_kit_path = config_path + "drum_kit.json"
+var profiles_path = config_path + "profiles.json"
+var drum_kit
+var profiles_list
+
+const ZONE_DEFAULTS_PATH = "res://zone_defaults.json"
+var zone_defaults = []
+
+const NUM_VELOCITY_CURVE_TYPES = 2
+var VALID_PAD_TYPES
+	
 func _ready():
+	zone_defaults = Utils.load_json_file(ZONE_DEFAULTS_PATH)
+	VALID_PAD_TYPES = zone_defaults.keys()
+	
 	if not DirAccess.dir_exists_absolute(GEMS_PATH):
 		GEMS_PATH = ORIGINAL_GEMS_PATH
 		DEBUG_GEMS = false
@@ -126,10 +147,12 @@ static func get_blending_mode(blending_mode: String):
 	return 0
 
 static func set_process_recursive(node, is_enabled):
+	if node.has_method("_process") or node.has_method("_physics_process"):
+		node.set_process(is_enabled)
+		node.set_physics_process(is_enabled)
+	
 	for child in node.get_children():
 		if child is Node:
-			child.set_process(is_enabled)
-			child.set_physics_process(is_enabled)
 			set_process_recursive(child, is_enabled)
 
 static func generate_lighting_frame_list(gem):
@@ -202,14 +225,14 @@ static func store_gem_textures_in_list():
 						blend_tint = Global.get_blending_mode(val)
 					if header == "blend_lighting":
 						blend_lighting = Global.get_blending_mode(val)
-					if header == "alpha":
-						color_a = float(val)
 					if header == "color_r":
 						color_r = float(val)
 					if header == "color_g":
 						color_g = float(val)
 					if header == "color_b":
 						color_b = float(val)
+					if header == "color_a":
+						color_a = float(val)
 						
 			Global.gem_texture_list.append([
 				gem, tex_tint, tex_tint_colored, tex_base, tex_ring,
@@ -260,7 +283,7 @@ static func get_gem_config_setting(gem, header):
 		index = 12
 	if header == "color_b":
 		index = 13
-	if header == "alpha":
+	if header == "color_a":
 		index = 14
 	
 	return gem_data[index]
