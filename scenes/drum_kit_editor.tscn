@@ -66,6 +66,74 @@ custom_minimum_size = Vector2(30, 0)
 layout_mode = 2
 text = "v"
 
+[node name="MIDIInputViewer" type="PanelContainer" parent="."]
+offset_left = 900.0
+offset_top = 675.0
+offset_right = 960.0
+offset_bottom = 735.0
+theme = ExtResource("2_0lac2")
+
+[node name="MIDIInputVBoxContainer" type="VBoxContainer" parent="MIDIInputViewer"]
+layout_mode = 2
+
+[node name="NoteHBoxContainer" type="HBoxContainer" parent="MIDIInputViewer/MIDIInputVBoxContainer"]
+layout_mode = 2
+
+[node name="NoteOnOff" type="Label" parent="MIDIInputViewer/MIDIInputVBoxContainer/NoteHBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="NotePitch" type="Label" parent="MIDIInputViewer/MIDIInputVBoxContainer/NoteHBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="NoteVelocity" type="Label" parent="MIDIInputViewer/MIDIInputVBoxContainer/NoteHBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="NoteChannel" type="Label" parent="MIDIInputViewer/MIDIInputVBoxContainer/NoteHBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="NoteDrumName" type="Label" parent="MIDIInputViewer/MIDIInputVBoxContainer/NoteHBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.249303, 0.424213, 0.161756, 1)
+
+[node name="ControlChangeHBoxContainer" type="HBoxContainer" parent="MIDIInputViewer/MIDIInputVBoxContainer"]
+layout_mode = 2
+
+[node name="CCNumber" type="Label" parent="MIDIInputViewer/MIDIInputVBoxContainer/ControlChangeHBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="CCValue" type="Label" parent="MIDIInputViewer/MIDIInputVBoxContainer/ControlChangeHBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="CCChannel" type="Label" parent="MIDIInputViewer/MIDIInputVBoxContainer/ControlChangeHBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="CCDrumName" type="Label" parent="MIDIInputViewer/MIDIInputVBoxContainer/ControlChangeHBoxContainer"]
+layout_mode = 2
+
+[node name="InvalidZonesLabel" type="Label" parent="."]
+unique_name_in_owner = true
+offset_left = 1150.0
+offset_top = 625.0
+offset_right = 1190.0
+offset_bottom = 648.0
+
+[node name="SaveButton" type="Button" parent="."]
+unique_name_in_owner = true
+offset_left = 1150.0
+offset_top = 675.0
+offset_right = 1194.0
+offset_bottom = 706.0
+text = "Save"
+
 [connection signal="pressed" from="SnapCheckbox" to="." method="_on_snap_checkbox_pressed"]
 [connection signal="pressed" from="LaneCountContainer/ArrowUpButton" to="." method="_on_arrow_up_button_pressed"]
 [connection signal="pressed" from="LaneCountContainer/ArrowDownButton" to="." method="_on_arrow_down_button_pressed"]
+[connection signal="pressed" from="SaveButton" to="." method="_on_save_button_pressed"]

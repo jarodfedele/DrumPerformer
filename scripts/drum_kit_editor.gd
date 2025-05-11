@@ -9,6 +9,19 @@ extends Node2D
 @onready var lane_count_label = $LaneCountContainer/LaneCountLabel
 @onready var arrow_down_button = $LaneCountContainer/ArrowDownButton
 
+@onready var note_on_off = %NoteOnOff
+@onready var note_pitch = %NotePitch
+@onready var note_velocity = %NoteVelocity
+@onready var note_channel = %NoteChannel
+@onready var note_drum_name = %NoteDrumName
+@onready var cc_number = %CCNumber
+@onready var cc_value = %CCValue
+@onready var cc_channel = %CCChannel
+@onready var cc_drum_name = %CCDrumName
+
+@onready var invalid_zones_label = %InvalidZonesLabel
+@onready var save_button = %SaveButton
+
 const DrumPadInstanceScene = preload("res://scenes/drum_pad_instance.tscn")
 const PadPropertiesScene = preload("res://scenes/pad_properties.tscn")
 
@@ -37,7 +50,38 @@ var refresh = false
 func _process(_delta):
 	if refresh:
 		update_contents()
+
+func _ready():
+	MidiInputManager.midi_send.connect(_on_midi_received)
 			
+func _on_midi_received(channel, type, pitch, velocity, controller_number, controller_value, pressure):
+	var valid_channel = float(channel) in Global.drum_kit["Channels"]
+	var channel_text
+	if valid_channel:
+		channel_text = ""
+	else:
+		channel_text = "[Ch. " + str(channel+1) + "]"
+		
+	if type == "cc":
+		cc_number.text = "CC #" + str(controller_number)
+		cc_value.text = "(Value: " + str(controller_value) + ")"
+		cc_channel.text = channel_text
+	else:
+		if type == "noteon":
+			note_on_off.text = "Note On"
+			note_velocity.text = "(Vel: " + str(velocity) + ")"
+		if type == "noteoff":
+			note_on_off.text = "Note Off"
+			note_velocity.text = ""
+		note_pitch.text = "#" + str(pitch)
+		note_channel.text = channel_text
+		if valid_channel:
+			var pad_and_zone = Global.get_zone(type, pitch)
+			if pad_and_zone:
+				note_drum_name.text = pad_and_zone[0]["Name"] + " (" + pad_and_zone[2] + ")"
+			else:
+				note_drum_name.text = ""
+				
 func update_contents():
 	refresh = false
 	
@@ -56,13 +100,10 @@ func update_contents():
 	draw_notes_on_highway()
 
 func draw_notes_on_highway():
-	var num_lanes
-	if Global.drum_kit.has("Lanes"):
-		num_lanes = Global.drum_kit["Lanes"]
-	else:
-		num_lanes = 6
-		Global.drum_kit["Lanes"] = num_lanes
-		Utils.save_json_file(Global.drum_kit_path, Global.drum_kit)
+	print("---")
+	print(Global.get_invalid_enabled_zones().size())
+	
+	var num_lanes = Global.drum_kit["Lanes"]
 	num_lanes = float(num_lanes)
 	lane_count_label.text = str(int(num_lanes))
 	arrow_up_button.visible = num_lanes < 10
@@ -111,7 +152,6 @@ func draw_notes_on_highway():
 			pad_layer = pad_default_position_map[pad_type]["row"]
 			pad["Position"] = pad_position
 			pad["Layer"] = pad_layer
-			Utils.save_json_file(Global.drum_kit_path, Global.drum_kit)
 		if pad_position != null and pad_layer != null:
 			note_data.append([row_times[pad_layer], pad_type, pad_position, pad_layer, pad_index, DEFAULT_VELOCITY])
 	
@@ -174,9 +214,20 @@ func draw_notes_on_highway():
 					var pad = pad_list[note.pad_index]
 					pad["Position"] = pad_position
 					pad["Layer"] = pad_layer
-					Utils.save_json_file(Global.drum_kit_path, Global.drum_kit)
 			)
+	
+	update_save_button()
 
+func update_save_button():
+	var text = ""
+	for pad_and_zone in Global.get_invalid_enabled_zones():
+		var pad = pad_and_zone[0]
+		var zone = pad_and_zone[1]
+		var zone_name = pad_and_zone[2]
+		text = text + "MISSING: Note # for " + pad["Name"] + " (" + zone_name + ")" + "\n"
+	invalid_zones_label.text = text
+	save_button.visible = (text == "")
+	
 func set_clicked_note(note):
 	for test_note in highway.get_notes():
 		test_note.set_grayscale(test_note != note and note != null)
@@ -317,7 +368,6 @@ func set_pad_property(pad, zone_name, property, val, to_update_contents):
 	else:
 		pad[zone_name][property] = val
 		
-	Utils.save_json_file(Global.drum_kit_path, Global.drum_kit)
 	if to_update_contents:
 		refresh = true
 				
@@ -364,8 +414,10 @@ func midi_number_text_field(node, pad, zone_name):
 	
 	midi_number_text_field.pad = pad
 	midi_number_text_field.zone_name = zone_name
-	var midi_note = int(get_pad_property(pad, zone_name, "Note"))
-	midi_number_text_field.text = str(midi_note)
+	var text = int(get_pad_property(pad, zone_name, "Note"))
+	if int(text) == -1:
+		text = ""
+	midi_number_text_field.text = str(text)
 	midi_number_text_field.number_changed.connect(_on_midi_number_changed)
 	
 	node.add_child(midi_number_text_field)
@@ -374,12 +426,12 @@ func _on_midi_number_changed(sender):
 	var pad = sender.pad
 	var zone_name = sender.zone_name
 	
-	var midi_note_str = sender.text
-	if not midi_note_str.is_valid_float():
-		return
-	
-	var midi_note = clamp(int(midi_note_str.to_float()), 0, 127)
+	var midi_note = sender.text
+	if midi_note.is_valid_float():
+		midi_note = clamp(int(midi_note.to_float()), 0, 127)
 	set_pad_property(pad, zone_name, "Note", midi_note, false)
+	
+	update_save_button()
 
 func positional_sensing_cc_text_field(node, pad, zone_name):
 	var midi_number_text_field = MIDINumberTextFieldScene.instantiate()
@@ -400,12 +452,12 @@ func _on_positional_sensing_cc_changed(sender):
 	var pad = sender.pad
 	var zone_name = sender.zone_name
 	
-	var cc_str = sender.text
-	if not cc_str.is_valid_float():
-		return
-	
-	var cc = clamp(int(cc_str.to_float()), 0, 127)
+	var cc = sender.text
+	if cc.is_valid_float():
+		cc = clamp(int(cc.to_float()), 0, 127)
 	set_pad_property(pad, zone_name, "PositionalSensingControlChange", cc, false)
+	
+	update_save_button()
 
 func hi_hat_pedal_cc_text_field(node, pad, zone_name):
 	var midi_number_text_field = MIDINumberTextFieldScene.instantiate()
@@ -426,14 +478,14 @@ func _on_hi_hat_pedal_cc_changed(sender):
 	var pad = sender.pad
 	var zone_name = sender.zone_name
 	
-	var cc_str = sender.text
-	if not cc_str.is_valid_float():
-		return
-	
-	var cc = clamp(int(cc_str.to_float()), 0, 127)
+	var cc = sender.text
+	if cc.is_valid_float():
+		cc = clamp(int(cc.to_float()), 0, 127)
 	set_pad_property(pad, zone_name, "PedalControlChange", cc, false)
+	
+	update_save_button()
 
-func zone_check_box(node, pad, zone_name, alawys_enabled):
+func zone_check_box(node, pad, zone_name, always_enabled):
 	var zone_check_box = PropertyCheckBoxScene.instantiate()
 	var property = "Enabled"
 	
@@ -441,13 +493,19 @@ func zone_check_box(node, pad, zone_name, alawys_enabled):
 	zone_check_box.zone_name = zone_name
 	zone_check_box.property = property
 	var enabled
-	if alawys_enabled:
+	if always_enabled:
 		enabled = true
 	else:
 		enabled = get_pad_property(pad, zone_name, property)
 	zone_check_box.button_pressed = enabled
 	zone_check_box.connect("toggled", Callable(self, "_on_check_button_toggled").bind(zone_check_box))
-
+	
+	if always_enabled:
+		zone_check_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var style = StyleBoxFlat.new()
+		style.bg_color = Color(0.3, 0.3, 0.3)
+		zone_check_box.add_theme_stylebox_override("pressed", style)
+		
 	node.add_child(zone_check_box)
 	
 	var zone_label = Label.new()
@@ -565,7 +623,6 @@ func remove_button(container, pad):
 func _on_pad_name_changed(sender):
 	var pad = Global.drum_kit["Pads"][sender.index]
 	pad["Name"] = sender.text
-	Utils.save_json_file(Global.drum_kit_path, Global.drum_kit)
 		
 func _on_midi_channel_button_clicked(sender):
 	var channels = Global.drum_kit["Channels"]
@@ -576,7 +633,6 @@ func _on_midi_channel_button_clicked(sender):
 	else:
 		channels.append(channel)
 		
-	Utils.save_json_file(Global.drum_kit_path, Global.drum_kit)
 	refresh = true
 
 func add_new_pad():
@@ -586,13 +642,12 @@ func add_new_pad():
 	}
 	
 	Global.drum_kit["Pads"].append(new_pad)
-	
-	Utils.save_json_file(Global.drum_kit_path, Global.drum_kit)
+
 	refresh = true
 
 func remove_pad(pad):
 	Global.drum_kit["Pads"].erase(pad)
-	Utils.save_json_file(Global.drum_kit_path, Global.drum_kit)
+
 	refresh = true
 	
 func set_pad_type(pad, pad_type):
@@ -602,7 +657,6 @@ func set_pad_type(pad, pad_type):
 				pad.erase(key)
 		pad["Type"] = pad_type
 
-	Utils.save_json_file(Global.drum_kit_path, Global.drum_kit)
 	refresh = true
 	
 func _on_pad_type_changed(sender, index):
@@ -615,7 +669,6 @@ func _on_midi_input_changed(sender, index):
 	if new_input != SELECT_MIDI_INPUT_TEXT:
 		Global.drum_kit["Input"] = new_input
 
-	Utils.save_json_file(Global.drum_kit_path, Global.drum_kit)
 	refresh = true
 
 func _on_remove_button_clicked(pad):
@@ -625,7 +678,6 @@ func add_new_midi_device():
 	Global.drum_kit["Input"] = SELECT_MIDI_INPUT_TEXT
 	Global.drum_kit["Channels"] = [0]
 
-	Utils.save_json_file(Global.drum_kit_path, Global.drum_kit)
 	refresh = true
 
 func _on_snap_checkbox_pressed() -> void:
@@ -634,9 +686,8 @@ func _on_snap_checkbox_pressed() -> void:
 
 func set_num_lanes(val):
 	Global.drum_kit["Lanes"] = val
-	highway.num_lanes = val
 	lane_count_label.text = str(int(val))
-	Utils.save_json_file(Global.drum_kit_path, Global.drum_kit)
+	highway.num_lanes = val
 	highway.refresh_boundaries()
 	draw_notes_on_highway()
 	
@@ -645,3 +696,6 @@ func _on_arrow_up_button_pressed() -> void:
 
 func _on_arrow_down_button_pressed() -> void:
 	set_num_lanes(Global.drum_kit["Lanes"] - 1)
+
+func _on_save_button_pressed() -> void:
+	Utils.save_json_file(Global.drum_kit_path, Global.drum_kit)

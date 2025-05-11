@@ -93,7 +93,13 @@ var zone_defaults = []
 
 const NUM_VELOCITY_CURVE_TYPES = 2
 var VALID_PAD_TYPES
-	
+
+const NOTE_ON = 9
+const NOTE_OFF = 8
+const CC = 11
+
+var valid_zone_keys = ["Head", "Rim", "Side Stick", "Bow", "Edge", "Bell", "Closed", "Open", "Half-Open", "Splash", "Stomp"]
+
 func _ready():
 	zone_defaults = Utils.load_json_file(ZONE_DEFAULTS_PATH)
 	VALID_PAD_TYPES = zone_defaults.keys()
@@ -101,7 +107,46 @@ func _ready():
 	if not DirAccess.dir_exists_absolute(GEMS_PATH):
 		GEMS_PATH = ORIGINAL_GEMS_PATH
 		DEBUG_GEMS = false
-		
+
+func get_invalid_enabled_zones():
+	var list = []
+	for pad_and_zone in get_enabled_zones():
+		var pad = pad_and_zone[0]
+		var zone = pad_and_zone[1]
+		var zone_name = pad_and_zone[2]
+		var val = zone["Note"]
+		if !(str(val).is_valid_float()) or val == -1:
+			list.append(pad_and_zone)
+	return list
+
+func get_zone(type, pitch):
+	for pad_and_zone in get_enabled_zones():
+		var pad = pad_and_zone[0]
+		var zone = pad_and_zone[1]
+		var zone_name = pad_and_zone[2]
+		if type == "noteon" and zone.get("Note") == pitch:
+			return pad_and_zone
+			
+func get_enabled_zones():
+	var list = []
+	for pad in Global.drum_kit["Pads"]:
+		var pad_type = pad["Type"]
+		for key in pad.keys():
+			if key in Global.valid_zone_keys:
+				var zone_name = key
+				var zone = pad[key]
+				if !zone.has("Enabled") or zone["Enabled"]:
+					var valid = true
+					if pad_type == "hihat":
+						if pad["ContinuousPedal"]:
+							if zone_name == "Closed" or zone_name == "Open" or zone_name == "Half-Open":
+								valid = false
+						elif zone_name == "Bow" or zone_name == "Edge" or zone_name == "Bell":
+							valid = false
+					if valid:
+						list.append([pad, zone, zone_name])
+	return list
+
 func increment_hud_yPos():
 	hud_yPos += 45
 

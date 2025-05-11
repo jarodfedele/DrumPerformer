@@ -1,9 +1,8 @@
-[gd_scene load_steps=29 format=3 uid="uid://dxq6r1i15jboc"]
+[gd_scene load_steps=28 format=3 uid="uid://dxq6r1i15jboc"]
 
 [ext_resource type="Script" uid="uid://khrkx3xyjf80" path="res://scripts/game.gd" id="1_oaba0"]
 [ext_resource type="PackedScene" uid="uid://bh1nljnb8bek0" path="res://scenes/main_menu.tscn" id="2_0sl42"]
 [ext_resource type="Script" uid="uid://d18b5kef2c43d" path="res://scripts/osc_sender.gd" id="2_8ool0"]
-[ext_resource type="Script" uid="uid://dyxrhq0j3ug7n" path="res://scripts/midi_input_manager.gd" id="2_nepv3"]
 [ext_resource type="PackedScene" uid="uid://d1b6ws7pv2dnd" path="res://scenes/song_select_menu.tscn" id="3_oaba0"]
 [ext_resource type="PackedScene" uid="uid://ia775m2g5opk" path="res://scenes/drum_kit_editor.tscn" id="6_h3rex"]
 [ext_resource type="PackedScene" uid="uid://bwli5jb25by71" path="res://scenes/song.tscn" id="6_m4url"]
@@ -44,9 +43,6 @@ script = ExtResource("1_oaba0")
 
 [node name="OSCSender" type="Node" parent="."]
 script = ExtResource("2_8ool0")
-
-[node name="MIDIInputManager" type="Node" parent="."]
-script = ExtResource("2_nepv3")
 
 [node name="AudioManager" type="Node" parent="."]
 

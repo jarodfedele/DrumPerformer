@@ -21,6 +21,7 @@ config/icon="res://icon.svg"
 Utils="*res://scripts/utils.gd"
 Global="*res://scripts/global.gd"
 SceneManager="*res://scripts/scene_manager.gd"
+MidiInputManager="*res://scripts/midi_input_manager.gd"
 
 [display]
 
