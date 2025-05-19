@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://bogs60q2uh712"]
+
+[node name="ArrowDownButton" type="Button"]
+offset_right = 25.0
+offset_bottom = 31.0
+text = "v"

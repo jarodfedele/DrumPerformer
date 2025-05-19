@@ -9,3 +9,8 @@ func _ready():
 
 func _on_text_changed(new_text):
 	emit_signal("name_changed", self)
+
+func _gui_input(event):
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
+		# Prevent default popup menu
+		get_viewport().set_input_as_handled()

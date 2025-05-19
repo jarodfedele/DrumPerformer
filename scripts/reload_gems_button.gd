@@ -12,7 +12,7 @@ func _ready():
 	
 	Global.increment_hud_yPos()
 	
-	pressed.connect(_on_Button_pressed)
+	pressed.connect(_on_button_pressed)
 		
-func _on_Button_pressed():
+func _on_button_pressed():
 	song.load_song(Global.current_song_path)

@@ -18,6 +18,8 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+Directory="*res://scripts/directory.gd"
+NoteCompiler="*res://scripts/note_compiler.gd"
 Utils="*res://scripts/utils.gd"
 Global="*res://scripts/global.gd"
 SceneManager="*res://scripts/scene_manager.gd"

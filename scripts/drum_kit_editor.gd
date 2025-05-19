@@ -2,6 +2,7 @@ extends Node2D
 
 @onready var drum_kit_vbox_container = $ScrollContainer/PanelContainer/VBoxContainer/DrumKitPanelContainer/DrumKitVBoxContainer
 @onready var midi_device_vbox_container = $MIDIDevicePanelContainer/MIDIDeviceVBoxContainer
+@onready var tom_order_vbox_container = %TomOrderVBoxContainer
 
 @onready var highway = $Highway
 
@@ -19,6 +20,7 @@ extends Node2D
 @onready var cc_channel = %CCChannel
 @onready var cc_drum_name = %CCDrumName
 
+@onready var current_note_label = %CurrentNoteLabel
 @onready var invalid_zones_label = %InvalidZonesLabel
 @onready var save_button = %SaveButton
 
@@ -33,8 +35,11 @@ const MIDINumberTextFieldScene = preload("res://scenes/midi_number_text_field.ts
 const PropertyCheckBoxScene = preload("res://scenes/property_check_box.tscn")
 const VelocityCurveEditorScene = preload("res://scenes/velocity_curve_editor.tscn")
 
-const AddButtonScene = preload("res://scenes/add_button.tscn")
+const ArrowUpButtonScene = preload("res://scenes/arrow_up_button.tscn")
+const ArrowDownButtonScene = preload("res://scenes/arrow_down_button.tscn")
 const RemoveButtonScene = preload("res://scenes/remove_button.tscn")
+
+const DrumKitConfirmationDialogScene = preload("res://scenes/drum_kit_confirmation_dialog.tscn")
 
 const SELECT_PAD_TYPE_TEXT = "Select pad type..."
 const SELECT_MIDI_INPUT_TEXT = "Select MIDI input..."
@@ -45,6 +50,8 @@ var original_mouse_position
 
 var snap_enabled = false
 
+var note_pad_indeces
+
 var refresh = false
 
 func _process(_delta):
@@ -53,11 +60,11 @@ func _process(_delta):
 
 func _ready():
 	MidiInputManager.midi_send.connect(_on_midi_received)
+	highway.set_playable(false)
 			
 func _on_midi_received(channel, type, pitch, velocity, controller_number, controller_value, pressure):
-	var valid_channel = float(channel) in Global.drum_kit["Channels"]
 	var channel_text
-	if valid_channel:
+	if MidiInputManager.is_valid_channel(channel):
 		channel_text = ""
 	else:
 		channel_text = "[Ch. " + str(channel+1) + "]"
@@ -75,12 +82,12 @@ func _on_midi_received(channel, type, pitch, velocity, controller_number, contro
 			note_velocity.text = ""
 		note_pitch.text = "#" + str(pitch)
 		note_channel.text = channel_text
-		if valid_channel:
-			var pad_and_zone = Global.get_zone(type, pitch)
-			if pad_and_zone:
-				note_drum_name.text = pad_and_zone[0]["Name"] + " (" + pad_and_zone[2] + ")"
-			else:
-				note_drum_name.text = ""
+
+		var pad_and_zone = Global.get_zone(type, pitch)
+		if MidiInputManager.is_valid_note(channel, type, pitch, velocity):
+			note_drum_name.text = pad_and_zone[0]["Name"] + " (" + pad_and_zone[2] + ")"
+		else:
+			note_drum_name.text = ""
 				
 func update_contents():
 	refresh = false
@@ -90,38 +97,28 @@ func update_contents():
 	for child in midi_device_vbox_container.get_children():
 		child.queue_free()
 		
-	add_drum_kit_editor_widget()
-	
 	if Global.drum_kit.has("Input") and Global.drum_kit.has("Channels"):
 		add_midi_devices_widget()
 	else:
 		add_new_midi_device()
 	
 	draw_notes_on_highway()
+	
+	add_drum_kit_editor_widget() #after draw_notes_on_highway()
+	
+	update_save_button()
 
 func draw_notes_on_highway():
-	print("---")
-	print(Global.get_invalid_enabled_zones().size())
-	
 	var num_lanes = Global.drum_kit["Lanes"]
 	num_lanes = float(num_lanes)
 	lane_count_label.text = str(int(num_lanes))
 	arrow_up_button.visible = num_lanes < 10
 	arrow_down_button.visible = num_lanes > 4
-	
-	var pad_default_position_map = {
-		"snare": { "lane": 0, "row": 0 },
-		"racktom": { "lane": 1, "row": 0 },
-		"floortom": { "lane": num_lanes-1, "row": 0 },
-		"hihat": { "lane": 0, "row": 1 },
-		"ride": { "lane": num_lanes-1, "row": 1 },
-		"crash": { "lane": 2, "row": 1 }
-		}
 
 	const NUM_ROWS = 4
 	var row_times = []
 	for row in range(NUM_ROWS):
-		var row_time = row*0.4 + 0.1
+		var row_time = row*0.4 + 0.0
 		row_times.append(row_time)
 	
 	var beatline_data = []
@@ -136,6 +133,8 @@ func draw_notes_on_highway():
 	var note_data = []
 	const DEFAULT_VELOCITY = 100
 	
+	note_pad_indeces = []
+	
 	var pad_list = Global.drum_kit["Pads"]
 	for pad_index in range(pad_list.size()):
 		var pad = pad_list[pad_index]
@@ -145,16 +144,9 @@ func draw_notes_on_highway():
 		if pad.has("Position") and pad.has("Layer"):
 			pad_position = pad["Position"]
 			pad_layer = pad["Layer"]
-		elif pad_default_position_map.has(pad_type):
-			var lane = pad_default_position_map[pad_type]["lane"]
-			var center_x = (highway.get_lane_position(lane)[0] + highway.get_lane_position(lane+1)[0]) * 0.5
-			pad_position = Utils.convert_range(center_x, Global.HIGHWAY_XMIN, Global.HIGHWAY_XMAX, 0.0, 1.0)
-			pad_layer = pad_default_position_map[pad_type]["row"]
-			pad["Position"] = pad_position
-			pad["Layer"] = pad_layer
-		if pad_position != null and pad_layer != null:
-			note_data.append([row_times[pad_layer], pad_type, pad_position, pad_layer, pad_index, DEFAULT_VELOCITY])
-	
+			note_data.append([row_times[pad_layer], pad_type, pad_position, pad_index, DEFAULT_VELOCITY, -1])
+			note_pad_indeces.append(pad_index)
+			
 	highway.set_lane_lines_visibility(snap_enabled)
 	
 	highway.populate_notes(note_data)
@@ -169,7 +161,10 @@ func draw_notes_on_highway():
 	clicked_note = null
 	for note in highway.get_notes():
 		var rect = ColorRect.new()
-		rect.color = Color(1, 1, 1, 0.5)
+		if Global.DEBUG_MODE:
+			rect.color = Color(1, 1, 1, 0.5)
+		else:
+			rect.color = Color(1, 1, 1, 0)
 		set_collision_rect_position(rect, note)
 		add_child(rect)
 		
@@ -205,7 +200,6 @@ func draw_notes_on_highway():
 					for row_time in row_times:
 						snapped_layer_values.append(highway.get_y_pos_from_time(row_time, false))
 					var pad_layer = Utils.get_closest_index(mouse_y, snapped_layer_values)
-					clicked_note.layer = pad_layer
 					clicked_note.time = row_times[pad_layer]
 					
 					clicked_note.update_position()
@@ -217,20 +211,30 @@ func draw_notes_on_highway():
 			)
 	
 	update_save_button()
+	
+	return note_pad_indeces
 
 func update_save_button():
 	var text = ""
-	for pad_and_zone in Global.get_invalid_enabled_zones():
-		var pad = pad_and_zone[0]
-		var zone = pad_and_zone[1]
-		var zone_name = pad_and_zone[2]
-		text = text + "MISSING: Note # for " + pad["Name"] + " (" + zone_name + ")" + "\n"
+	for message in Global.get_drumkit_error_messages():
+		text = text + message + "\n"
 	invalid_zones_label.text = text
 	save_button.visible = (text == "")
 	
 func set_clicked_note(note):
 	for test_note in highway.get_notes():
 		test_note.set_grayscale(test_note != note and note != null)
+	
+	var note_text
+	if note != null:
+		var note_label = Label.new()
+		var pad_index = note.pad_index
+		var pad = Global.drum_kit["Pads"][pad_index]
+		note_text = "Current note: " + pad["Name"]
+	else:
+		note_text = ""
+	current_note_label.text = note_text
+	
 	clicked_note = note
 	
 func _unhandled_input(event):
@@ -246,21 +250,81 @@ func set_collision_rect_position(rect, note):
 	rect.position = Vector2(note_xMin, note_yMin)
 	rect.size = Vector2(note_xMax-note_xMin, note_yMax-note_yMin)
 
+func cleanup_tom_order(tom_pad_list):
+	var new_orders = 0
+	var pads_in_order = []
+	var pad_type
+	for i in range(tom_pad_list.size()):
+		var pad = tom_pad_list[i]
+		pad_type = pad["Type"]
+		if !pad.has("Order"):
+			pad["Order"] = tom_pad_list.size() + new_orders
+			new_orders += 1
+		var pad_order = pad["Order"]
+		pads_in_order.append([pad, pad_order])
+		
+	pads_in_order.sort_custom(func(a, b):
+		return a[1] < b[1]
+	)
+	
+	for i in range(pads_in_order.size()):
+		var pad = pads_in_order[i][0]
+		pad["Order"] = i
+	
+	tom_pad_list.sort_custom(func(a, b):
+		return a["Order"] < b["Order"]
+	)
+
+func add_tom_order_hbox_containers(tom_pad_list):
+	for i in range(tom_pad_list.size()):
+		var pad = tom_pad_list[i]
+		var pad_type = pad["Type"]
+		var pad_order = pad["Order"]
+		
+		var tom_pad_order_hbox_container = HBoxContainer.new()
+		var tom_pad_label = Label.new()
+		tom_pad_label.text = pad["Name"]
+		tom_pad_order_hbox_container.add_child(tom_pad_label)
+		
+		if i > 0:
+			var pad_to_swap = tom_pad_list[i-1]
+			var arrow_up_button = ArrowUpButtonScene.instantiate()
+			arrow_up_button.connect("pressed", Callable(self, "_move_tom_in_order").bind(pad, pad_to_swap))
+			tom_pad_order_hbox_container.add_child(arrow_up_button)
+		if i < tom_pad_list.size()-1:
+			var pad_to_swap = tom_pad_list[i+1]
+			var arrow_down_button = ArrowDownButtonScene.instantiate()
+			arrow_down_button.connect("pressed", Callable(self, "_move_tom_in_order").bind(pad, pad_to_swap))
+			tom_pad_order_hbox_container.add_child(arrow_down_button)
+
+		tom_pad_order_hbox_container.add_child(tom_pad_label)
+		tom_order_vbox_container.add_child(tom_pad_order_hbox_container)
+				
 func add_drum_kit_editor_widget():
+	var octoban_pad_list = []
+	var racktom_pad_list = []
+	var floortom_pad_list = []
+	
 	var pad_list = Global.drum_kit["Pads"]
 	for pad_index in range(pad_list.size()):
 		var pad = pad_list[pad_index]
 		var pad_type = pad["Type"]
-		var pad_instance = DrumPadInstanceScene.instantiate()
 		
+		if pad_type == "octoban":
+			octoban_pad_list.append(pad)
+		if pad_type == "racktom":
+			racktom_pad_list.append(pad)
+		if pad_type == "floortom":
+			floortom_pad_list.append(pad)
+		
+		var pad_instance = DrumPadInstanceScene.instantiate()
 		var pad_properties = PadPropertiesScene.instantiate()
 		add_pad_name_text_field(pad_properties, pad, pad_index)
-		add_pad_type_selector(pad_properties, pad, pad_index)
+		add_pad_type_label(pad_properties, pad)
 		remove_button(pad_properties, pad)
 		
 		if pad_type == "kick":
-			if property_check_box(pad_properties, pad, "", "DoublePedal"):
-				property_check_box(pad_properties, pad, "", "HeelToe")
+			property_check_box(pad_properties, pad, "", "DoublePedal")
 		if pad_type == "snare":
 			positional_sensing_widget(pad_properties, pad, "")
 		if pad_type == "racktom":
@@ -269,8 +333,8 @@ func add_drum_kit_editor_widget():
 			positional_sensing_widget(pad_properties, pad, "")
 		if pad_type == "hihat":
 			positional_sensing_widget(pad_properties, pad, "")
-			if property_check_box(pad_properties, pad, "", "ContinuousPedal"):
-				hi_hat_pedal_cc_text_field(pad_properties, pad, "")
+			if property_check_box(pad_properties, pad, "", "PedalSendsMIDI"):
+				midi_number_text_field(pad_properties, pad, "", "PedalControlChange")
 		if pad_type == "ride":
 			positional_sensing_widget(pad_properties, pad, "")
 		if pad_type == "crash":
@@ -283,46 +347,62 @@ func add_drum_kit_editor_widget():
 		
 		var container
 		if pad_type == "kick":
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Head", true)
+			container = add_persistent_zone_data(zones_vbox_container, pad, "head")
 		if pad_type == "snare":
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Head", true)
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Side Stick", false)
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Rim", false)
+			container = add_persistent_zone_data(zones_vbox_container, pad, "head")
+			container = add_persistent_zone_data(zones_vbox_container, pad, "sidestick")
+			if get_pad_property(pad, "sidestick", "Enabled"):
+				container = add_persistent_zone_data(zones_vbox_container, pad, "rim")
 		if pad_type == "racktom":
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Head", true)
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Rim", false)
+			container = add_persistent_zone_data(zones_vbox_container, pad, "head")
+			container = add_persistent_zone_data(zones_vbox_container, pad, "rim")
 		if pad_type == "floortom":
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Head", true)
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Rim", false)
+			container = add_persistent_zone_data(zones_vbox_container, pad, "head")
+			container = add_persistent_zone_data(zones_vbox_container, pad, "rim")
 		if pad_type == "hihat":
-			if get_pad_property(pad, "", "ContinuousPedal"):
-				container = add_persistent_zone_data(zones_vbox_container, pad, "Bow", true)
-				container = add_persistent_zone_data(zones_vbox_container, pad, "Edge", false)
-				container = add_persistent_zone_data(zones_vbox_container, pad, "Bell", false)
-			else:
-				container = add_persistent_zone_data(zones_vbox_container, pad, "Closed", true)
-				container = add_persistent_zone_data(zones_vbox_container, pad, "Open", true)
-				container = add_persistent_zone_data(zones_vbox_container, pad, "Half-Open", false)
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Stomp", true)
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Splash", false)
+			container = add_persistent_zone_data(zones_vbox_container, pad, "bow")
+			container = add_persistent_zone_data(zones_vbox_container, pad, "edge")
+			container = add_persistent_zone_data(zones_vbox_container, pad, "bell")
+			container = add_persistent_zone_data(zones_vbox_container, pad, "stomp")
+			container = add_persistent_zone_data(zones_vbox_container, pad, "splash")
 		if pad_type == "ride":
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Bow", true)
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Edge", false)
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Bell", false)
+			container = add_persistent_zone_data(zones_vbox_container, pad, "bow")
+			container = add_persistent_zone_data(zones_vbox_container, pad, "edge")
+			container = add_persistent_zone_data(zones_vbox_container, pad, "bell")
 		if pad_type == "crash":
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Bow", true)
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Edge", false)
-			container = add_persistent_zone_data(zones_vbox_container, pad, "Bell", false)
+			container = add_persistent_zone_data(zones_vbox_container, pad, "bow")
+			container = add_persistent_zone_data(zones_vbox_container, pad, "edge")
+			container = add_persistent_zone_data(zones_vbox_container, pad, "bell")
 												
 		drum_kit_vbox_container.add_child(pad_instance)
 	
-	var add_button = AddButtonScene.instantiate()
-	add_button.connect("pressed", Callable(self, "_on_add_button_clicked").bind(add_button))
-	drum_kit_vbox_container.add_child(add_button)
-
-func _on_add_button_clicked(sender):
-	add_new_pad()
+	var pad_type_selector = OptionButtonScene.instantiate()
+	pad_type_selector.option_changed.connect(_on_pad_type_selected)
 	
+	pad_type_selector.add_item("Select pad type...")
+	for type in Global.VALID_PAD_TYPES:
+		pad_type_selector.add_item(type)
+		
+	drum_kit_vbox_container.add_child(pad_type_selector)
+	
+	if racktom_pad_list.size() >= 2 and floortom_pad_list.size() >= 1:
+		for child in tom_order_vbox_container.get_children():
+			child.queue_free()
+			
+		cleanup_tom_order(octoban_pad_list)
+		cleanup_tom_order(racktom_pad_list)
+		cleanup_tom_order(floortom_pad_list)
+		add_tom_order_hbox_containers(octoban_pad_list)
+		add_tom_order_hbox_containers(racktom_pad_list)
+		add_tom_order_hbox_containers(floortom_pad_list)
+
+func _move_tom_in_order(pad, pad_to_swap):
+	var original_pad_order = pad["Order"]
+	pad["Order"] = pad_to_swap["Order"]
+	pad_to_swap["Order"] = original_pad_order
+	
+	refresh = true
+
 func add_midi_devices_widget():
 	var midi_device_instance = MIDIDeviceInstanceScene.instantiate()
 	
@@ -333,34 +413,19 @@ func add_midi_devices_widget():
 
 	midi_device_vbox_container.add_child(midi_device_instance)
 
-func add_persistent_zone_data(parent_container, pad, zone_name, always_enabled):
+func add_persistent_zone_data(parent_container, pad, zone_name):
 	var zone_hbox_container = HBoxContainer.new()
 	parent_container.add_child(zone_hbox_container)
-	if zone_check_box(zone_hbox_container, pad, zone_name, always_enabled):
-		midi_number_text_field(zone_hbox_container, pad, zone_name)
+	if zone_check_box(zone_hbox_container, pad, zone_name):
+		midi_number_text_field(zone_hbox_container, pad, zone_name, "Note")
 		velocity_curve_widget(zone_hbox_container, pad, zone_name)
 	return zone_hbox_container
 	
 func get_pad_property(pad, zone_name, property):
-	var val
-	var pad_type = pad["Type"]
 	if zone_name == "":
-		if property in pad:
-			val = pad[property]
-		else:
-			val = Global.zone_defaults[pad_type][property]
-			set_pad_property(pad, zone_name, property, val, true)
+		return pad[property]
 	else:
-		if not pad.has(zone_name):
-			pad[zone_name] = {}
-			
-		if property in pad[zone_name]:
-			val = pad[zone_name][property]
-		else:
-			val = Global.zone_defaults[pad_type][zone_name][property]
-			set_pad_property(pad, zone_name, property, val, true)
-			
-	return val
+		return pad[zone_name][property]
 
 func set_pad_property(pad, zone_name, property, val, to_update_contents):
 	if zone_name == "":
@@ -381,8 +446,8 @@ func get_unused_connected_inputs(inputs):
 	return list
 
 func positional_sensing_widget(pad_properties, pad, zone_name):
-	if property_check_box(pad_properties, pad, zone_name, "PositionalSensingEnabled"):
-		positional_sensing_cc_text_field(pad_properties, pad, zone_name)
+	if property_check_box(pad_properties, pad, zone_name, "PositionalSensing"):
+		midi_number_text_field(pad_properties, pad, zone_name, "PositionalSensingControlChange")
 				
 func velocity_curve_widget(node, pad, zone_name):
 	var velocity_curve_editor = VelocityCurveEditorScene.instantiate()
@@ -409,44 +474,68 @@ func _on_curve_type_changed(sender):
 	var curve_type = sender.curve_type
 	set_pad_property(pad, zone_name, "CurveType", curve_type, true)
 	
-func midi_number_text_field(node, pad, zone_name):
+func midi_number_text_field(node, pad, zone_name, property):
 	var midi_number_text_field = MIDINumberTextFieldScene.instantiate()
 	
 	midi_number_text_field.pad = pad
 	midi_number_text_field.zone_name = zone_name
-	var text = int(get_pad_property(pad, zone_name, "Note"))
-	if int(text) == -1:
+	midi_number_text_field.property = property
+	
+	var val = get_pad_property(pad, zone_name, property)
+	var text
+	if val is float or val is int:
+		text = str(int(val))
+	elif val is Array and property == "Note":
 		text = ""
-	midi_number_text_field.text = str(text)
+		for i in range(val.size()):
+			text += str(int(val[i]))
+			if i != val.size()-1:
+				text += ","
+	else:
+		text = val
+				
+	midi_number_text_field.text = text
 	midi_number_text_field.number_changed.connect(_on_midi_number_changed)
 	
 	node.add_child(midi_number_text_field)
+
+	if property != "Note":
+		var label = Label.new()
+		label.text = "CC"
+		node.add_child(label)
+	if Global.does_zone_require_multiple_values(pad, zone_name):
+		var label = Label.new()
+		label.text = "(most closed to most open)"
+		node.add_child(label)
 	
 func _on_midi_number_changed(sender):
 	var pad = sender.pad
 	var zone_name = sender.zone_name
+	var property = sender.property
 	
-	var midi_note = sender.text
-	if midi_note.is_valid_float():
-		midi_note = clamp(int(midi_note.to_float()), 0, 127)
-	set_pad_property(pad, zone_name, "Note", midi_note, false)
+	var val = sender.text
 	
-	update_save_button()
+	var valid_string = true
 
-func positional_sensing_cc_text_field(node, pad, zone_name):
-	var midi_number_text_field = MIDINumberTextFieldScene.instantiate()
+	var numbers = Utils.parse_numbers(val)
+	if (numbers.size() > 1 and property != "Note") or numbers.size() == 0 or "." in val:
+		valid_string = false
+	for number in numbers:
+		if not Global.is_valid_midi_number(number):
+			valid_string = false
 	
-	midi_number_text_field.pad = pad
-	midi_number_text_field.zone_name = zone_name
-	var midi_note = int(get_pad_property(pad, zone_name, "PositionalSensingControlChange"))
-	midi_number_text_field.text = str(midi_note)
-	midi_number_text_field.number_changed.connect(_on_positional_sensing_cc_changed)
-	
-	node.add_child(midi_number_text_field)
-	
-	var cc_label = Label.new()
-	cc_label.text = "CC"
-	node.add_child(cc_label)
+	var final_val
+	if valid_string:
+		if numbers.size() == 1:
+			final_val = numbers[0]
+		else:
+			final_val = numbers
+	else:
+		final_val = val
+		
+	set_pad_property(pad, zone_name, property, final_val, false)
+
+	update_save_button()
 
 func _on_positional_sensing_cc_changed(sender):
 	var pad = sender.pad
@@ -459,21 +548,6 @@ func _on_positional_sensing_cc_changed(sender):
 	
 	update_save_button()
 
-func hi_hat_pedal_cc_text_field(node, pad, zone_name):
-	var midi_number_text_field = MIDINumberTextFieldScene.instantiate()
-	
-	midi_number_text_field.pad = pad
-	midi_number_text_field.zone_name = zone_name
-	var midi_note = int(get_pad_property(pad, zone_name, "PedalControlChange"))
-	midi_number_text_field.text = str(midi_note)
-	midi_number_text_field.number_changed.connect(_on_hi_hat_pedal_cc_changed)
-	
-	node.add_child(midi_number_text_field)
-	
-	var cc_label = Label.new()
-	cc_label.text = "CC"
-	node.add_child(cc_label)
-
 func _on_hi_hat_pedal_cc_changed(sender):
 	var pad = sender.pad
 	var zone_name = sender.zone_name
@@ -485,7 +559,7 @@ func _on_hi_hat_pedal_cc_changed(sender):
 	
 	update_save_button()
 
-func zone_check_box(node, pad, zone_name, always_enabled):
+func zone_check_box(node, pad, zone_name):
 	var zone_check_box = PropertyCheckBoxScene.instantiate()
 	var property = "Enabled"
 	
@@ -493,19 +567,17 @@ func zone_check_box(node, pad, zone_name, always_enabled):
 	zone_check_box.zone_name = zone_name
 	zone_check_box.property = property
 	var enabled
-	if always_enabled:
-		enabled = true
-	else:
+	if pad[zone_name].has(property):
 		enabled = get_pad_property(pad, zone_name, property)
-	zone_check_box.button_pressed = enabled
-	zone_check_box.connect("toggled", Callable(self, "_on_check_button_toggled").bind(zone_check_box))
-	
-	if always_enabled:
+	else:
+		enabled = true
 		zone_check_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var style = StyleBoxFlat.new()
 		style.bg_color = Color(0.3, 0.3, 0.3)
 		zone_check_box.add_theme_stylebox_override("pressed", style)
-		
+	zone_check_box.button_pressed = enabled
+	zone_check_box.connect("toggled", Callable(self, "_on_check_button_toggled").bind(zone_check_box))
+
 	node.add_child(zone_check_box)
 	
 	var zone_label = Label.new()
@@ -532,7 +604,7 @@ func property_check_box(node, pad, zone_name, property):
 		text = "Double Pedal?"
 	if text == "HeelToe":
 		text = "Heel Toe?"
-	if text == "PositionalSensingEnabled":
+	if text == "PositionalSensing":
 		text = "Positional Sensing?"
 	property_label.text = text
 	node.add_child(property_label)
@@ -568,26 +640,10 @@ func add_midi_channel_button(midi_device_instance, channel):
 			
 	midi_device_instance.add_child(midi_channel_button)
 
-func add_pad_type_selector(pad_properties, pad, pad_index):
-	var current_type = pad["Type"]
-	
-	var pad_type_selector = OptionButtonScene.instantiate()
-	pad_type_selector.current_index = pad_index
-	pad_type_selector.option_changed.connect(_on_pad_type_changed)
-	
-	var found_type = false
-	for i in range(Global.VALID_PAD_TYPES.size()):
-		var type = Global.VALID_PAD_TYPES[i]
-		pad_type_selector.add_item(type)
-		if type == current_type:
-			pad_type_selector.select(i)
-			found_type = true
-		
-	if not found_type:
-		pad_type_selector.add_item(SELECT_PAD_TYPE_TEXT)
-		pad_type_selector.select(Global.VALID_PAD_TYPES.size())
-		
-	pad_properties.add_child(pad_type_selector)
+func add_pad_type_label(pad_properties, pad):
+	var pad_type_label = Label.new()
+	pad_type_label.text = pad["Type"]
+	pad_properties.add_child(pad_type_label)
 	
 func add_midi_input_selector(midi_device_instance):
 	var current_input = Global.drum_kit["Input"]
@@ -610,11 +666,6 @@ func add_midi_input_selector(midi_device_instance):
 		
 	midi_device_instance.add_child(midi_input_selector)
 
-func add_button():
-	var add_button = AddButtonScene.instantiate()
-	add_button.button_clicked.connect(_on_add_button_clicked)
-	midi_device_vbox_container.add_child(add_button)
-
 func remove_button(container, pad):
 	var remove_button = RemoveButtonScene.instantiate()
 	remove_button.pressed.connect(_on_remove_button_clicked.bind(pad))
@@ -623,6 +674,7 @@ func remove_button(container, pad):
 func _on_pad_name_changed(sender):
 	var pad = Global.drum_kit["Pads"][sender.index]
 	pad["Name"] = sender.text
+	update_save_button()
 		
 func _on_midi_channel_button_clicked(sender):
 	var channels = Global.drum_kit["Channels"]
@@ -635,13 +687,75 @@ func _on_midi_channel_button_clicked(sender):
 		
 	refresh = true
 
-func add_new_pad():
-	var new_pad = {
+func get_default_position(lane):
+	var center_x = (highway.get_lane_position(lane)[0] + highway.get_lane_position(lane+1)[0]) * 0.5
+	return Utils.convert_range(center_x, Global.HIGHWAY_XMIN, Global.HIGHWAY_XMAX, 0.0, 1.0)
+
+func create_default_zone(pad, zone_name):
+	var zone = {
+		"Note": "",
+		"CurveType": 0,
+		"CurveStrength": 0
+	}
+	if zone_name == "sidestick" or zone_name == "rim" or zone_name == "edge" or zone_name == "bell" or zone_name == "splash":
+		zone["Enabled"] = false
+	
+	pad[zone_name] = zone
+			
+func add_new_pad(pad_type):
+	var pad = {
 		"Name": "New Pad",
-		"Type": SELECT_PAD_TYPE_TEXT
+		"Type": pad_type
 	}
 	
-	Global.drum_kit["Pads"].append(new_pad)
+	if pad_type == "snare":
+		pad["Position"] = get_default_position(0)
+		pad["Layer"] = 0
+		create_default_zone(pad, "head")
+		create_default_zone(pad, "sidestick")
+		create_default_zone(pad, "rim")
+	if pad_type == "racktom":
+		pad["Position"] = get_default_position(1)
+		pad["Layer"] = 0
+		create_default_zone(pad, "head")
+		create_default_zone(pad, "rim")
+	if pad_type == "floortom":
+		pad["Position"] = get_default_position(highway.num_lanes-1)
+		pad["Layer"] = 0
+		create_default_zone(pad, "head")
+		create_default_zone(pad, "rim")
+	if pad_type == "hihat":
+		pad["Position"] = get_default_position(0)
+		pad["Layer"] = 1
+		pad["PedalSendsMIDI"] = false
+		pad["PedalControlChange"] = ""
+		pad["PedalFlipPolarity"] = false
+		create_default_zone(pad, "bow")
+		create_default_zone(pad, "edge")
+		create_default_zone(pad, "bell")
+		create_default_zone(pad, "stomp")
+		create_default_zone(pad, "splash")
+	if pad_type == "ride":
+		pad["Position"] = get_default_position(highway.num_lanes-1)
+		pad["Layer"] = 1
+		create_default_zone(pad, "bow")
+		create_default_zone(pad, "edge")
+		create_default_zone(pad, "bell")
+	if pad_type == "crash":
+		pad["Position"] = get_default_position(highway.num_lanes-2)
+		pad["Layer"] = 1
+		create_default_zone(pad, "bow")
+		create_default_zone(pad, "edge")
+		create_default_zone(pad, "bell")
+	if pad_type == "kick":
+		pad["DoublePedal"] = false
+		create_default_zone(pad, "head")
+	
+	if pad_type != "kick":
+		pad["PositionalSensing"] = false
+		pad["PositionalSensingControlChange"] = ""
+		
+	Global.drum_kit["Pads"].append(pad)
 
 	refresh = true
 
@@ -649,20 +763,11 @@ func remove_pad(pad):
 	Global.drum_kit["Pads"].erase(pad)
 
 	refresh = true
-	
-func set_pad_type(pad, pad_type):
-	if pad_type != SELECT_PAD_TYPE_TEXT:
-		for key in pad.keys():
-			if key != "Name" and key != "Position" and key != "Layer":
-				pad.erase(key)
-		pad["Type"] = pad_type
 
-	refresh = true
-	
-func _on_pad_type_changed(sender, index):
-	var pad = Global.drum_kit["Pads"][sender.current_index]
-	var new_type = sender.get_item_text(index)
-	set_pad_type(pad, new_type)
+func _on_pad_type_selected(sender, index):
+	if index > 0:
+		var pad_type = sender.get_item_text(index)
+		add_new_pad(pad_type)
 	
 func _on_midi_input_changed(sender, index):
 	var new_input = sender.get_item_text(index)
@@ -688,7 +793,7 @@ func set_num_lanes(val):
 	Global.drum_kit["Lanes"] = val
 	lane_count_label.text = str(int(val))
 	highway.num_lanes = val
-	highway.refresh_boundaries()
+	highway.refresh_boundaries(false)
 	draw_notes_on_highway()
 	
 func _on_arrow_up_button_pressed() -> void:
@@ -698,4 +803,10 @@ func _on_arrow_down_button_pressed() -> void:
 	set_num_lanes(Global.drum_kit["Lanes"] - 1)
 
 func _on_save_button_pressed() -> void:
-	Utils.save_json_file(Global.drum_kit_path, Global.drum_kit)
+	Global.drum_kit["Valid"] = true
+	Utils.save_json_file(Directory.DRUM_KIT_PATH, Global.drum_kit)
+
+func _on_back_button_pressed() -> void:
+	var drum_kit_confirmation_dialog = DrumKitConfirmationDialogScene.instantiate()
+	add_child(drum_kit_confirmation_dialog)
+	#SceneManager.set_scene("MainMenu")

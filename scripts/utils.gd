@@ -240,3 +240,28 @@ func get_closest_index(x: float, values: Array) -> int:
 	
 func get_closest_value(x: float, values: Array) -> float:
 	return values[get_closest_index(x, values)]
+
+func parse_numbers(input: String) -> Array:
+	var result = []
+	var regex = RegEx.new()
+	regex.compile(r"\d+")
+	for match in regex.search_all(input):
+		result.append(int(match.get_string()))
+	return result
+
+func get_duplicates(arr: Array) -> Array:
+	var seen = {}
+	var duplicates = []
+	for value in arr:
+		if seen.has(value):
+			if not duplicates.has(value):
+				duplicates.append(value)
+		else:
+			seen[value] = true
+	return duplicates
+
+func load_text_file(path: String) -> String:
+	var file := FileAccess.open(path, FileAccess.READ)
+	var text := file.get_as_text()
+	file.close()
+	return text

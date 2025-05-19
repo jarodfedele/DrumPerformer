@@ -20,6 +20,12 @@ position = Vector2(0, 1)
 [node name="BeatLines" type="Node2D" parent="."]
 script = ExtResource("2_jfxlv")
 
+[node name="Hitbox" type="Polygon2D" parent="."]
+color = Color(1, 1, 1, 0.266667)
+
+[node name="Strikeline" type="Line2D" parent="."]
+width = 6.0
+
 [node name="LaneLines" type="Node2D" parent="."]
 
 [node name="SustainOverlays" type="Node2D" parent="."]
@@ -36,3 +42,22 @@ default_color = Color(0.632387, 0.253045, 0.5027, 1)
 z_index = 16
 material = SubResource("ShaderMaterial_j4iwk")
 uv = PackedVector2Array(0, 0, 1, 0, 1, 1, 0, 1)
+
+[node name="DebugLabels" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+offset_left = 20.0
+offset_top = 100.0
+offset_right = 60.0
+offset_bottom = 177.0
+
+[node name="HitCountLabel" type="Label" parent="DebugLabels"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="MissCountLabel" type="Label" parent="DebugLabels"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="OverhitCountLabel" type="Label" parent="DebugLabels"]
+unique_name_in_owner = true
+layout_mode = 2

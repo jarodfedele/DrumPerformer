@@ -12,16 +12,19 @@ var color_b : float
 var color_a : float
 var grayscale = false
 var normalized_position : float
-var layer : int
 var lane_start : int
 var lane_end : int
 var velocity : int
+var pedal_val : int
 var positioning_shift_x : float
 var positioning_shift_y : float
 var positioning_scale : float
 var blend_tint : int
 var blend_lighting : int
 
+var hit_state
+
+var note_index
 var pad_index
 
 var frames
@@ -31,6 +34,7 @@ var aspect_ratio : float
 var lighting_frame_file_name = "lighting_frames.txt"
 
 @onready var highway = get_parent().get_parent()
+@onready var notes = get_parent()
 @onready var tint = $Tint
 @onready var tint_colored = $TintColored
 @onready var base = $Base
@@ -116,66 +120,118 @@ func get_collision_bounds():
 	var xMax = position.x+note_size.x*0.5
 	var yMax = position.y+note_size.y*0.5
 	return [xMin, yMin, xMax, yMax]
+	
+func hit():
+	hit_state = true
+	highway.last_hit_note = self
+	
+	var tween = get_tree().create_tween()
 
+	var sprite
+	if Global.setting_tint_colored:
+		sprite = tint_colored
+	else:
+		sprite = tint
+	tween.tween_property(self, "scale", Vector2(0.0, 0.0), 0.1)
+	tween.tween_callback(Callable(self, "_on_tween_complete"))
+	
+	highway.hit_count += 1
+	highway.hit_count_label.text = "Hits: " + str(highway.hit_count)
+	
+	highway.update_next_pad(pad_index, note_index)
+
+func _on_tween_complete():
+	visible = false
+	set_process(false)
+		
+func miss():
+	hit_state = false
+	
+	highway.miss_count += 1
+	highway.miss_count_label.text = "Misses: " + str(highway.miss_count)
+	
+	highway.update_next_pad(pad_index, note_index)
+	
+	set_grayscale(true) #causes lag when scrolling
+	
+func is_hittable():
+	if hit_state != null:
+		return false
+		
+	var past_min_time
+	if highway.last_hit_note:
+		past_min_time = time >= highway.last_hit_note.time
+	else:
+		past_min_time = true
+	return (past_min_time and time >= highway.hit_time_min and time <= highway.hit_time_max)
+	
 func update_position():
-	var is_visible = (time >= highway.visible_time_min and time <= highway.visible_time_max)
+	if hit_state == true:
+		return
+	
+	if hit_state != false and highway.hit_time_min > time:
+		print(highway.hit_time_max)
+		miss()
+		
+	var is_visible = (time >= highway.visible_time_min - 0.4 and time <= highway.visible_time_max)
 	
 	visible = is_visible
 	set_process(is_visible)
 	
-	if is_visible:
-		var lane_bounds = highway.get_lane_bounds(normalized_position)
-		var lane_start_x1 = lane_bounds[0]
-		var lane_start_x2 = lane_bounds[1]
-		var lane_end_x1 = lane_bounds[2]
-		var lane_end_x2 = lane_bounds[3]
+	if !is_visible:
+		return
 		
-		#var lane_start_x1 = highway.get_lane_position(lane_start)[0]
-		#var lane_start_x2 = highway.get_lane_position(lane_start)[1]
-		#var lane_end_x1 = highway.get_lane_position(lane_end+1)[0]
-		#var lane_end_x2 = highway.get_lane_position(lane_end+1)[1]
-		
-		var note_yMax = highway.get_y_pos_from_time(time, false)
+	var lane_bounds = highway.get_lane_bounds(normalized_position)
+	var lane_start_x1 = lane_bounds[0]
+	var lane_start_x2 = lane_bounds[1]
+	var lane_end_x1 = lane_bounds[2]
+	var lane_end_x2 = lane_bounds[3]
+	
+	var note_yMax = highway.get_y_pos_from_time(time, false)
 
-		var note_xMin = Utils.get_x_at_y(lane_start_x2, Global.HIGHWAY_YMIN, lane_start_x1, Global.HIGHWAY_YMAX, note_yMax)
-		var note_xMax = Utils.get_x_at_y(lane_end_x2, Global.HIGHWAY_YMIN, lane_end_x1, Global.HIGHWAY_YMAX, note_yMax)
-		
-		var note_xSize = note_xMax - note_xMin
+	var note_xMin = Utils.get_x_at_y(lane_start_x2, Global.HIGHWAY_YMIN, lane_start_x1, Global.HIGHWAY_YMAX, note_yMax)
+	var note_xMax = Utils.get_x_at_y(lane_end_x2, Global.HIGHWAY_YMIN, lane_end_x1, Global.HIGHWAY_YMAX, note_yMax)
+	
+	var note_xSize = note_xMax - note_xMin
 
-		var percentage_scalar = Utils.get_velocity_size_percentage(velocity)
-		
-		var scaled_note_xSize = note_xSize * percentage_scalar
-		var xSize_diff = (scaled_note_xSize - note_xSize)/2
-		note_xMin = note_xMin - xSize_diff
-		note_xMax = note_xMax + xSize_diff
+	var percentage_scalar
+	if normalized_position == -1:
+		percentage_scalar = Utils.get_velocity_size_percentage(100)
+	else:
+		percentage_scalar = Utils.get_velocity_size_percentage(velocity)
+	
+	var scaled_note_xSize = note_xSize * percentage_scalar
+	var xSize_diff = (scaled_note_xSize - note_xSize)/2
+	note_xMin = note_xMin - xSize_diff
+	note_xMax = note_xMax + xSize_diff
 
-		var note_ySize = scaled_note_xSize/aspect_ratio
-		var note_yMin = note_yMax - note_ySize
-		
-		var xLen = note_xMax - note_xMin
-		note_xMin = note_xMin + xLen * positioning_shift_x
-		note_xMax = note_xMax + xLen * positioning_shift_x
+	var note_ySize = scaled_note_xSize/aspect_ratio
+	var note_yMin = note_yMax - note_ySize
+	
+	var xLen = note_xMax - note_xMin
+	note_xMin = note_xMin + xLen * positioning_shift_x
+	note_xMax = note_xMax + xLen * positioning_shift_x
 
-		var yLen = note_yMax - note_yMin
-		note_yMin = note_yMin + yLen * positioning_shift_y
-		note_yMax = note_yMax + yLen * positioning_shift_y
-		
-		if not is_zero_approx(positioning_scale):
-			var x_increase = (note_xMax-note_xMin)*(positioning_scale-1)
-			var y_increase = (note_yMax-note_yMin)*(positioning_scale-1)
-			note_xMin = note_xMin - x_increase/2
-			note_xMax = note_xMax + x_increase/2
-			note_yMin = note_yMin - y_increase/2
-			note_yMax = note_yMax + y_increase/2
+	var yLen = note_yMax - note_yMin
+	note_yMin = note_yMin + yLen * positioning_shift_y
+	note_yMax = note_yMax + yLen * positioning_shift_y
+	
+	if not is_zero_approx(positioning_scale):
+		var x_increase = (note_xMax-note_xMin)*(positioning_scale-1)
+		var y_increase = (note_yMax-note_yMin)*(positioning_scale-1)
+		note_xMin = note_xMin - x_increase/2
+		note_xMax = note_xMax + x_increase/2
+		note_yMin = note_yMin - y_increase/2
+		note_yMax = note_yMax + y_increase/2
 
-		var desired_width = note_xMax - note_xMin
-		var desired_height = note_yMax - note_yMin
+	var desired_width = note_xMax - note_xMin
+	var desired_height = note_yMax - note_yMin
 
-		var tex_width = base.texture.get_width()
-		var tex_height = base.texture.get_height()
-		
-		var note_xCenter = (note_xMin + note_xMax)/2
-		var note_yCenter = (note_yMin + note_yMax)/2
-		
-		position = Vector2(note_xCenter, note_yCenter)
-		scale = Vector2(desired_width / tex_width, desired_height / tex_height)
+	var tex_width = base.texture.get_width()
+	var tex_height = base.texture.get_height()
+	
+	var note_xCenter = (note_xMin + note_xMax)/2
+	var note_yCenter = (note_yMin + note_yMax)/2
+	
+	position = Vector2(note_xCenter, note_yCenter)
+	scale = Vector2(desired_width / tex_width, desired_height / tex_height)

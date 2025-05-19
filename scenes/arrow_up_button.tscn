@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://byxos1jfp0tel"]
+
+[node name="ArrowUpButton" type="Button"]
+offset_right = 25.0
+offset_bottom = 31.0
+text = "^"

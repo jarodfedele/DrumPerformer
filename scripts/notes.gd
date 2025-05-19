@@ -1,9 +1,11 @@
 extends Node2D
 
+@onready var highway = get_parent()
+
 func update_positions():
-	for child in get_children():
-		child.update_position()
+	for note in get_children():
+		note.update_position()
 
 func set_sprites():
-	for child in get_children():
-		child.set_sprite()
+	for note in get_children():
+		note.set_sprite()

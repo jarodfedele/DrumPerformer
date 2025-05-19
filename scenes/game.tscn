@@ -50,8 +50,10 @@ script = ExtResource("2_8ool0")
 script = ExtResource("15_264po")
 
 [node name="FPS" type="Label" parent="."]
-offset_right = 40.0
-offset_bottom = 23.0
+offset_left = 140.0
+offset_top = 10.0
+offset_right = 180.0
+offset_bottom = 33.0
 script = ExtResource("14_trtic")
 
 [node name="DebugHUD" type="Control" parent="."]

@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3 uid="uid://4luwxmreqhaw"]
+
+[ext_resource type="Theme" uid="uid://bsmn25a76cmc1" path="res://themes/main_menu_theme.tres" id="1_tkpbl"]
+[ext_resource type="Script" uid="uid://jhabvb40sehc" path="res://scripts/back_button.gd" id="2_adig4"]
+
+[node name="BackButton" type="Button"]
+custom_minimum_size = Vector2(80, 0)
+offset_right = 8.0
+offset_bottom = 8.0
+theme = ExtResource("1_tkpbl")
+text = "Back"
+script = ExtResource("2_adig4")
+
+[connection signal="pressed" from="." to="." method="_on_pressed"]

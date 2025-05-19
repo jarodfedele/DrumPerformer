@@ -1,6 +1,7 @@
 extends Node
 
-# In scene_manager.gd (autoload singleton)
+signal main_menu_scene_set
+
 var main_menu
 var song_select_menu
 var song
@@ -25,14 +26,14 @@ func init(game_node):
 	]
 	
 func set_scene(scene_name):
-	print("---------")
 	for scene in scene_list:
 		if scene.get_name() == scene_name:
 			scene.update_contents()
 			scene.visible = true
 			Global.set_process_recursive(scene, true)
-			print("ON: " + scene.get_name())
 		else:
 			scene.visible = false
 			Global.set_process_recursive(scene, false)
-			print("OFF: " + scene.get_name())
+	
+	if scene_name == "MainMenu":
+		emit_signal("main_menu_scene_set")

@@ -4,7 +4,10 @@ const HighwayScene = preload("res://scenes/highway.tscn")
 const StaffScene = preload("res://scenes/staff.tscn")
 const AudioBarScene = preload("res://scenes/audio_bar.tscn")
 
+const BackButtonScene = preload("res://scenes/back_button.tscn")
+
 @onready var song_audio_player = get_node("/root/Game/AudioManager/SongAudioPlayer")
+
 var highway
 var staff
 var audio_bar
@@ -57,7 +60,7 @@ func set_audio_players_to_song():
 func load_song(song_path):
 	for child in get_children():
 		child.queue_free()
-	
+		
 	loaded = false
 	
 	highway = HighwayScene.instantiate()
@@ -72,22 +75,31 @@ func load_song(song_path):
 		Global.current_song_path = song_path
 		set_audio_players_to_song()
 	
-	Global.current_gamedata = Utils.read_text_file(song_path + "gamedata.txt")
-	
 	staff.draw_background()
 	staff.draw_cover()
 	
+	Global.current_gamedata = Utils.read_text_file(song_path + "gamedata.txt")
 	reset_chart_data()
 	
-	highway.populate_beat_lines(beatline_data)
-	highway.populate_hihat_pedal_overlays()
-	highway.populate_sustain_overlays()
-	highway.populate_notes(note_data)
+	var data_arrays = NoteCompiler.run(highway)
+	var note_data = data_arrays[0]
+	var sustain_data = data_arrays[1]
+	var hihatpedal_data = data_arrays[2]
 	
+	highway.populate_beat_lines(beatline_data)
+	highway.populate_hihat_pedal_overlays(hihatpedal_data)
+	highway.populate_sustain_overlays(sustain_data)
+	highway.populate_notes(note_data)
+	highway.refresh_boundaries(true)
+	highway.update_contents(0)
+
 	staff.draw_clef()
 	staff.draw_staff_lines()
 	staff.populate_notations()
 	staff.take_screenshots()
+	
+	var back_button = BackButtonScene.instantiate()
+	add_child(back_button)
 	
 	loaded = true
 	
@@ -100,21 +112,9 @@ func process_general_data(values):
 		for i in range(5):
 			var yPos = Global.center_staff_line + (i-2)*Global.STAFF_SPACE_HEIGHT
 			staffline_data.append(yPos)
-	
-func process_note_data(values):
-	var time = values[0]
-	var gem = values[1]
-	var color = values[2]
-	var lane_start = values[3]
-	var lane_end = values[4]
-	var velocity = values[5]
-	var rgb = Utils.color_to_rgb(color)
-	
-	if gem != "none":
-		note_data.append([time, gem, lane_start, lane_end, velocity])
 
 func process_beatline_data(values):
-	var time = values[0]
+	var time = values[0] + Global.calibration_seconds
 	var color_r = values[1]
 	var color_g = values[2]
 	var color_b = values[3]
@@ -217,15 +217,7 @@ func reset_chart_data():
 		elif values.size() != 0:
 			if current_section == "GENERAL":
 				process_general_data(values)
-			if current_section == "NOTES":
-				process_note_data(values)
 			if current_section == "BEAT_LINES":
 				process_beatline_data(values)
-			if current_section == "HIHAT_PEDAL":
-				process_hihatpedal_data(values)	
-			if current_section == "SUSTAIN":
-				process_sustain_data(values)
 			#if current_section == "NOTATIONS":
 				#process_notation_data(values)
-	
-	Global.generate_valid_note_list()

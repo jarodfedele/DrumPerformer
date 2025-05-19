@@ -1,5 +1,7 @@
 extends Node
 
+var DEBUG_MODE = true
+
 @onready var song = get_node("/root/Game/Song")
 
 const HIGHWAY_XMIN = 30
@@ -9,7 +11,8 @@ const HIGHWAY_YSIZE = 600
 const HIGHWAY_XMAX = HIGHWAY_XMIN + HIGHWAY_XSIZE 
 const HIGHWAY_YMAX = HIGHWAY_YMIN + HIGHWAY_YSIZE
 const HIGHWAY_YFADESTART = HIGHWAY_YMIN + HIGHWAY_YSIZE*0.2
-
+const HIGHWAY_YSTRIKELINE = HIGHWAY_YMAX - HIGHWAY_YSIZE*0.2
+const HIGHWAY_HITWINDOW_MS = 100.0
 const STAFF_SPACE_HEIGHT = 10
 
 const NOTATION_XMIN = 100
@@ -48,12 +51,10 @@ const MIN_VELOCITY_SIZE_PERCENTAGE = 0.4
 
 const STAFF_BACKGROUND_COLOR = Color8(255, 255, 200)
 
-var USER_PATH = "C:/Users/jarod/Desktop/DrumPerformer/"
 const ORIGINAL_GEMS_PATH = "res://assets/gems/"
 var GEMS_PATH = ORIGINAL_GEMS_PATH
 var DEBUG_GEMS = false
 const NOTATIONS_PATH = "res://assets/notations/"
-const DEBUG_NOTE_LIST_PATH = "res://note_list.txt"
 
 var current_profile
 
@@ -82,41 +83,145 @@ var drum_input_volume: float
 
 var midi_input_count = 0
 
-var config_path = USER_PATH + "config/"
-var drum_kit_path = config_path + "drum_kit.json"
-var profiles_path = config_path + "profiles.json"
 var drum_kit
 var profiles_list
 
-const ZONE_DEFAULTS_PATH = "res://zone_defaults.json"
-var zone_defaults = []
-
 const NUM_VELOCITY_CURVE_TYPES = 2
-var VALID_PAD_TYPES
 
 const NOTE_ON = 9
 const NOTE_OFF = 8
 const CC = 11
 
-var valid_zone_keys = ["Head", "Rim", "Side Stick", "Bow", "Edge", "Bell", "Closed", "Open", "Half-Open", "Splash", "Stomp"]
+const VALID_PAD_TYPES = ["kick", "snare", "racktom", "floortom", "hihat", "ride", "crash"]
+const VALID_ZONE_KEYS = ["head", "rim", "sidestick", "bow", "edge", "bell", "splash", "stomp"]
+
+var calibration_seconds = 100.0 * 0.001
 
 func _ready():
-	zone_defaults = Utils.load_json_file(ZONE_DEFAULTS_PATH)
-	VALID_PAD_TYPES = zone_defaults.keys()
-	
 	if not DirAccess.dir_exists_absolute(GEMS_PATH):
 		GEMS_PATH = ORIGINAL_GEMS_PATH
 		DEBUG_GEMS = false
 
-func get_invalid_enabled_zones():
+func does_gem_exist(gem):
+	var index = get_gem_index_in_list(gem)
+	return (index != null)
+	
+func is_zone_enabled(pad, zone_name):
+	for pad_and_zone in get_enabled_zones():
+		if pad == pad_and_zone[0] and zone_name == pad_and_zone[2]:
+			return true
+	return false
+
+func is_valid_midi_number(str):
+	if str is String:
+		return false
+	if float(str) != int(str):
+		return false
+	var int_number = int(str)
+	if int_number < 0 or int_number > 127:
+		return false
+	return true
+
+func does_zone_require_multiple_values(pad, zone_name):
+	return pad.has("PedalSendsMIDI") and pad["PedalSendsMIDI"] == false and zone_name != "stomp" and zone_name != "splash"
+
+func get_drumkit_error_messages():
 	var list = []
+	var kick_count = 0
+	var snare_count = 0
+	var racktom_count = 0
+	var floortom_count = 0
+	var hihat_count = 0
+	var ride_count = 0
+	var crash_count = 0
+	
+	var note_on_list = []
+	var note_off_list = []
+	var cc_num_list = []
+	
+	if Global.drum_kit["Input"] not in MidiInputManager.midi_inputs:
+		list.append("Current MIDI Input not found!")
+	if Global.drum_kit["Channels"].size() == 0:
+		list.append("At least one channel must be enabled!")
+			
+	for pad in Global.drum_kit["Pads"]:
+		if pad.has("PositionalSensingControlChange") and pad["PositionalSensing"]:
+			var val = pad["PositionalSensingControlChange"]
+			if is_valid_midi_number(val):
+				cc_num_list.append(int(val))
+			else:
+				list.append("Invalid MIDI Positional Sensing Value: " + pad["Name"])
+		if pad.has("PedalControlChange") and pad["PedalSendsMIDI"]:
+			var val = pad["PedalControlChange"]
+			if is_valid_midi_number(val):
+				cc_num_list.append(int(val))
+			else:
+				list.append("Invalid MIDI Pedal Value: " + pad["Name"])
+						
+		var pad_type = pad["Type"]
+		
+		if pad_type == "kick":
+			kick_count += 1
+		if pad_type == "snare":
+			snare_count += 1
+		if pad_type == "racktom":
+			racktom_count += 1
+		if pad_type == "floortom":
+			floortom_count += 1
+		if pad_type == "hihat":
+			hihat_count += 1
+		if pad_type == "ride":
+			ride_count += 1
+		if pad_type == "crash":
+			crash_count += 1
+	
 	for pad_and_zone in get_enabled_zones():
 		var pad = pad_and_zone[0]
 		var zone = pad_and_zone[1]
 		var zone_name = pad_and_zone[2]
-		var val = zone["Note"]
-		if !(str(val).is_valid_float()) or val == -1:
-			list.append(pad_and_zone)
+		
+		if zone.has("Note"):
+			var val = zone["Note"]
+			if val is Array:
+				for number in val:
+					if is_valid_midi_number(number):
+						note_on_list.append(int(number))
+					else:
+						list.append("Invalid MIDI Note: " + pad["Name"] + " (" + zone_name + ")")
+						break
+			else:
+				if does_zone_require_multiple_values(pad, zone_name):
+					list.append("Invalid MIDI Note List: " + pad["Name"] + " (" + zone_name + ")")
+				elif is_valid_midi_number(val):
+					note_on_list.append(int(val))
+				else:
+					list.append("Invalid MIDI Note: " + pad["Name"] + " (" + zone_name + ")")	
+	
+	if kick_count < 1:
+		list.append("One kick required!")
+	if snare_count < 1:
+		list.append("One snare required!")
+	if racktom_count < 1:
+		list.append("Two rack toms required!")
+	if floortom_count < 1:
+		list.append("One floor tom required!")
+	if hihat_count < 1:
+		list.append("One hi-hat required!")
+	if ride_count < 1:
+		list.append("One ride required!")
+	if crash_count < 1:
+		list.append("One crash required!")
+	
+	var note_on_duplicates = Utils.get_duplicates(note_on_list)
+	for duplicate in note_on_duplicates:
+		list.append("Note #" + str(duplicate) + " is set multiple times!")
+	var note_off_duplicates = Utils.get_duplicates(note_off_list)
+	for duplicate in note_off_duplicates:
+		list.append("Note-Off #" + str(duplicate) + " is set multiple times!")
+	var cc_num_duplicates = Utils.get_duplicates(cc_num_list)
+	for duplicate in cc_num_duplicates:
+		list.append("Control Change #" + str(duplicate) + " is set multiple times!")
+		
 	return list
 
 func get_zone(type, pitch):
@@ -124,27 +229,27 @@ func get_zone(type, pitch):
 		var pad = pad_and_zone[0]
 		var zone = pad_and_zone[1]
 		var zone_name = pad_and_zone[2]
-		if type == "noteon" and zone.get("Note") == pitch:
-			return pad_and_zone
+		if type == "noteon":
+			if zone.has("Note"):
+				var val = zone["Note"]
+				if val is Array:
+					for number in val:
+						if int(number) == pitch:
+							return pad_and_zone
+				else:
+					if int(val) == pitch:
+						return pad_and_zone
 			
 func get_enabled_zones():
 	var list = []
 	for pad in Global.drum_kit["Pads"]:
 		var pad_type = pad["Type"]
 		for key in pad.keys():
-			if key in Global.valid_zone_keys:
+			if key in Global.VALID_ZONE_KEYS:
 				var zone_name = key
 				var zone = pad[key]
 				if !zone.has("Enabled") or zone["Enabled"]:
-					var valid = true
-					if pad_type == "hihat":
-						if pad["ContinuousPedal"]:
-							if zone_name == "Closed" or zone_name == "Open" or zone_name == "Half-Open":
-								valid = false
-						elif zone_name == "Bow" or zone_name == "Edge" or zone_name == "Bell":
-							valid = false
-					if valid:
-						list.append([pad, zone, zone_name])
+					list.append([pad, zone, zone_name])
 	return list
 
 func increment_hud_yPos():
@@ -333,26 +438,6 @@ static func get_gem_config_setting(gem, header):
 	
 	return gem_data[index]
 
-func generate_valid_note_list():
-	var path = Global.DEBUG_NOTE_LIST_PATH
-	if FileAccess.file_exists(path):
-		return
-	
-	var output = ""
-	
-	var dir = DirAccess.open(Global.GEMS_PATH)
-	dir.list_dir_begin()
-	var file_name = dir.get_next()
-	while file_name != "":
-		if dir.current_is_dir() and not file_name.begins_with("."):
-			output += file_name + "\n"
-		file_name = dir.get_next()
-
-	# Write to a file inside res://
-	var file = FileAccess.open(path, FileAccess.WRITE)
-	file.store_string(output)
-	file.close()
-
 func debug_set_gem_property(gem, header, val):
 	if not Global.debug_update_notes:
 		return
@@ -379,3 +464,28 @@ func debug_set_gem_property(gem, header, val):
 		file.close()
 	
 	song.load_song(Global.current_song_path)
+
+func get_value_from_key(line: String, key: String) -> Variant:
+	line = line.strip_edges(true, false)  # Remove trailing spaces only
+	var values = line.split(" ")
+	for val in values:
+		var parsed = get_key_and_value(val)
+		if parsed and parsed[0] == key:
+			var result = parsed[1]
+			var num = result.to_float()
+			if str(num) == result or str(int(num)) == result:
+				return num
+			return result
+	return null
+
+func get_key_and_value(str: String) -> Array:
+	var equals_index = str.find("=")
+	var space_index = str.find(" ")
+
+	if space_index != -1 or equals_index == -1:
+		push_error("Bad line in get_key_and_value(): " + str)
+		return []
+	
+	var key = str.substr(0, equals_index)
+	var value = str.substr(equals_index + 1)
+	return [key, value]
