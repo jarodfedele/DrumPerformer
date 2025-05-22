@@ -1,6 +1,6 @@
 # Drum Performer
 
-Drum Performer (tentatively named) is a rhythm game under development that doubles as a legitimate learning tool for drummers. Users will be able to connect their electronic drum kit to the game and play music written for the game. Users will hear their drumming through drum sample libraries built into the game. Unlike other drum-focused rhythm games, the charts in Drum Performer feature exact transcriptions, not simplified representations.
+Drum Performer is a rhythm game under development that doubles as a legitimate learning tool for drummers. Users will be able to connect their electronic drum kit to the game and play music written for the game. Users will hear their drumming through drum sample libraries built into the game. Unlike other drum-focused rhythm games, the charts in Drum Performer feature exact transcriptions, not simplified representations.
 
 # Features
 
