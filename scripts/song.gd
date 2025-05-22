@@ -1,17 +1,20 @@
-extends Node2D
+extends Node
 
-const HighwayScene = preload("res://scenes/highway.tscn")
+const VenueCanvasLayerScene = preload("res://scenes/venue_canvas_layer.tscn")
+const ViewportHighway3DScene = preload("res://scenes/viewport_highway_3d.tscn")
+const Highway3DScene = preload("res://scenes/highway_3d.tscn")
+
 const StaffScene = preload("res://scenes/staff.tscn")
-const AudioBarScene = preload("res://scenes/audio_bar.tscn")
 
 const BackButtonScene = preload("res://scenes/back_button.tscn")
 
+
 @onready var song_audio_player = get_node("/root/Game/AudioManager/SongAudioPlayer")
+@onready var timecode = get_node("/root/Game/Song/AudioBar/Timecode")
 
 var highway
 var staff
 var audio_bar
-var timecode
 
 var note_data: Array = []
 var beatline_data: Array = []
@@ -29,9 +32,9 @@ var loaded = false
 
 func update_contents():
 	load_song("res://test_song/")
-	
+
 func sync_song_time(time):
-	audio_play_start_time = time
+	audio_play_start_time = time - Global.calibration_seconds
 	audio_frame_count = 0
 	
 func _physics_process(delta):
@@ -45,6 +48,7 @@ func _physics_process(delta):
 		#update timecode
 		var length = song_audio_player.stream.get_length()
 		if length and timecode:
+			print("HERE: " + Utils.seconds_to_min_sec_string(current_song_time) + "/" + Utils.seconds_to_min_sec_string(length))
 			timecode.text = Utils.seconds_to_min_sec_string(current_song_time) + "/" + Utils.seconds_to_min_sec_string(length)
 		
 		#update visible game contents
@@ -60,23 +64,25 @@ func set_audio_players_to_song():
 func load_song(song_path):
 	for child in get_children():
 		child.queue_free()
+	
+	var venue_canvas_layer = VenueCanvasLayerScene.instantiate()
+	venue_canvas_layer.layer = -2
+	add_child(venue_canvas_layer)
+	
+	#var canvas_layer = CanvasLayer.new()
+	#var viewport_container = SubViewportContainer.new()
+	#var viewport_highway_3d = ViewportHighway3DScene.instantiate()
+	#viewport_container.add_child(viewport_highway_3d)
+	#canvas_layer.add_child(viewport_container)
+	#canvas_layer.layer = -1
+	#add_child(canvas_layer)
+	
+
+	
+	#var highway_3d = Highway3DScene.instantiate()
+	#add_child(highway_3d)
 		
 	loaded = false
-	
-	highway = HighwayScene.instantiate()
-	staff = StaffScene.instantiate()
-	audio_bar = AudioBarScene.instantiate()
-	
-	add_child(highway)
-	add_child(staff)
-	add_child(audio_bar)
-	
-	if song_path != Global.current_song_path:
-		Global.current_song_path = song_path
-		set_audio_players_to_song()
-	
-	staff.draw_background()
-	staff.draw_cover()
 	
 	Global.current_gamedata = Utils.read_text_file(song_path + "gamedata.txt")
 	reset_chart_data()
@@ -84,17 +90,35 @@ func load_song(song_path):
 	var data_arrays = NoteCompiler.run(highway)
 	var note_data = data_arrays[0]
 	var sustain_data = data_arrays[1]
-	var hihatpedal_data = data_arrays[2]
+	var hihat_pedal_data = data_arrays[2]
 	
-	highway.populate_beat_lines(beatline_data)
-	highway.populate_hihat_pedal_overlays(hihatpedal_data)
-	highway.populate_sustain_overlays(sustain_data)
-	highway.populate_notes(note_data)
-	highway.refresh_boundaries(true)
+	var viewport_size = get_viewport().get_visible_rect().size
+	var base_width = viewport_size.x
+	var base_height = viewport_size.y
+	var x_center = base_width*0.5
+	
+	var highway_x_min = x_center - (Global.HIGHWAY_XSIZE*0.5)
+	var highway_y_max = base_height-Global.NOTATION_YSIZE
+	var highway_y_min = highway_y_max-Global.HIGHWAY_YSIZE
+	highway = Highway.create(Global.drum_kit["Lanes"], true, 
+		highway_x_min, highway_y_min, Global.HIGHWAY_XSIZE, Global.HIGHWAY_YSIZE, 
+		beatline_data, hihat_pedal_data, sustain_data, note_data)
+	add_child(highway)
 	highway.update_contents(0)
+	
+	staff = Staff.create(true, 0, 0, highway_y_max, base_width, base_height)
+	add_child(staff)
+	
+	var audio_bar_x_size = 1300
+	var audio_bar_x_min = x_center - (audio_bar_x_size*0.5)
 
-	staff.draw_clef()
-	staff.draw_staff_lines()
+	audio_bar = AudioBar.create(song_audio_player, audio_bar_x_min, 30, audio_bar_x_size, 60)
+	add_child(audio_bar)
+
+	if song_path != Global.current_song_path:
+		Global.current_song_path = song_path
+		set_audio_players_to_song()
+	
 	staff.populate_notations()
 	staff.take_screenshots()
 	
@@ -108,19 +132,12 @@ func process_general_data(values):
 	var val = values[1]
 	
 	if header == "center_staff_line":
-		Global.center_staff_line = val*Global.STAFF_SPACE_HEIGHT + Global.NOTATION_YMIN
-		for i in range(5):
-			var yPos = Global.center_staff_line + (i-2)*Global.STAFF_SPACE_HEIGHT
-			staffline_data.append(yPos)
+		Global.center_staff_line_index = val
 
 func process_beatline_data(values):
-	var time = values[0] + Global.calibration_seconds
-	var color_r = values[1]
-	var color_g = values[2]
-	var color_b = values[3]
-	var thickness = values[4]
-
-	beatline_data.append([time, color_r, color_g, color_b, thickness])
+	var time = values[0]
+	var type = values[1]
+	beatline_data.append([time, type])
 
 func process_hihatpedal_data(values):
 	var lane_start = values[0]
@@ -185,10 +202,10 @@ func process_notation_data(values):
 	if time == -1:
 		time = null
 	var file_name = values[2]
-	var xMin = values[3] * Global.STAFF_SPACE_HEIGHT + Global.NOTATION_XMIN
-	var yMin = values[4] * Global.STAFF_SPACE_HEIGHT + Global.NOTATION_YMIN
-	var xMax = values[5] * Global.STAFF_SPACE_HEIGHT + Global.NOTATION_XMIN
-	var yMax = values[6] * Global.STAFF_SPACE_HEIGHT + Global.NOTATION_YMIN
+	var xMin = values[3] * Global.STAFF_SPACE_HEIGHT
+	var yMin = values[4] * Global.STAFF_SPACE_HEIGHT
+	var xMax = values[5] * Global.STAFF_SPACE_HEIGHT
+	var yMax = values[6] * Global.STAFF_SPACE_HEIGHT
 	var misc
 	if values.size() > 7:
 		misc = values[7]
@@ -219,5 +236,5 @@ func reset_chart_data():
 				process_general_data(values)
 			if current_section == "BEAT_LINES":
 				process_beatline_data(values)
-			#if current_section == "NOTATIONS":
-				#process_notation_data(values)
+			if current_section == "NOTATIONS":
+				process_notation_data(values)

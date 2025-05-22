@@ -1,6 +1,6 @@
 extends TextureRect
 
-@onready var highway = get_parent().get_parent()
+@onready var highway = get_parent().get_parent().get_parent()
 
 var points : Array
 
@@ -57,9 +57,9 @@ func update_current_point_index_variables(new_point_index):
 	
 	current_start_time = point_data[0]
 	current_end_time = point_data[2]
-	current_yMax = highway.get_y_pos_from_time(current_start_time, false)
+	current_yMax = highway.get_y_pos_from_time(current_start_time)
 	current_valMax = point_data[1]
-	current_yMin = highway.get_y_pos_from_time(current_end_time, false)
+	current_yMin = highway.get_y_pos_from_time(current_end_time)
 	current_valMin = point_data[3]
 	current_is_gradient = point_data[4]
 	
@@ -77,7 +77,7 @@ func get_current_point_index(current_y_pixel):
 			point_yMin = current_yMin
 		else:
 			var point_data = points[point_index]
-			point_yMin = highway.get_y_pos_from_time(point_data[2], false)
+			point_yMin = highway.get_y_pos_from_time(point_data[2])
 		
 		if current_y_pixel >= point_yMin:
 			break

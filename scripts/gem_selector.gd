@@ -40,11 +40,11 @@ func _on_item_selected(index: int):
 		
 		Global.debug_update_notes = false
 		
-		shift_x_slider.value = Global.get_gem_config_setting(gem, "shiftx")
-		shift_y_slider.value = Global.get_gem_config_setting(gem, "shifty")
-		scale_slider.value = Global.get_gem_config_setting(gem, "scale")
-		tint_alpha_slider.value = Global.get_gem_config_setting(gem, "color_a")
-		var blend_tint_index = Global.get_gem_config_setting(gem, "blend_tint")
+		shift_x_slider.value = Global.get_gem_config_setting(gem, "shiftx", 0)
+		shift_y_slider.value = Global.get_gem_config_setting(gem, "shifty", 0)
+		scale_slider.value = Global.get_gem_config_setting(gem, "scale", 1)
+		tint_alpha_slider.value = Global.get_gem_config_setting(gem, "color_a", 1)
+		var blend_tint_index = Global.get_gem_config_setting(gem, "blend_tint", 0)
 		if blend_tint_index:
 			blend_tint_index += 1
 		else:

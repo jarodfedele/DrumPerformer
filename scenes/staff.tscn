@@ -1,20 +1,17 @@
-[gd_scene load_steps=5 format=3 uid="uid://crklrr1ifrpm3"]
+[gd_scene load_steps=3 format=3 uid="uid://crklrr1ifrpm3"]
 
 [ext_resource type="Script" uid="uid://61ovdhx127v0" path="res://scripts/staff.gd" id="1_xh1k6"]
-[ext_resource type="Script" uid="uid://dwgpmejy7ynfb" path="res://scripts/staff_background.gd" id="2_nf2qa"]
-[ext_resource type="Script" uid="uid://b4ldspkxgw0bj" path="res://scripts/staff_cover.gd" id="3_e4git"]
 [ext_resource type="Texture2D" uid="uid://dis8fms30rq6g" path="res://assets/notations/clef_percussion.png" id="4_vln3h"]
 
 [node name="Staff" type="Node2D"]
+z_index = 16
 script = ExtResource("1_xh1k6")
 
 [node name="Background" type="Polygon2D" parent="."]
-script = ExtResource("2_nf2qa")
 
 [node name="NotationPages" type="Node2D" parent="."]
 
 [node name="Cover" type="Polygon2D" parent="."]
-script = ExtResource("3_e4git")
 
 [node name="Clef" type="Sprite2D" parent="."]
 texture = ExtResource("4_vln3h")

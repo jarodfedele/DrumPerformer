@@ -1,4 +1,4 @@
 extends Button
 
 func _on_pressed() -> void:
-	SceneManager.set_scene("MainMenu")
+	Global.game.set_scene("main_menu")

@@ -134,19 +134,6 @@ static func binary_search_closest_or_less(sorted_table: Array, target: float, su
 
 	return result
 
-static func set_sprite_position(sprite, xMin, yMin, xMax, yMax):
-	var desired_width = xMax - xMin
-	var desired_height = yMax - yMin
-
-	var tex_width = sprite.texture.get_width()
-	var tex_height = sprite.texture.get_height()
-	
-	var xCenter = (xMin + xMax)/2
-	var yCenter = (yMin + yMax)/2
-	
-	sprite.position = Vector2(xCenter, yCenter)
-	sprite.scale = Vector2(desired_width / tex_width, desired_height / tex_height)
-	
 static func load_json_file(path):
 	var file = FileAccess.open(path, FileAccess.READ)
 	if file == null:

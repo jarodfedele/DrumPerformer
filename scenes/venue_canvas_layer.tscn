@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3 uid="uid://3icor1my7885"]
+
+[ext_resource type="Texture2D" uid="uid://c4u6hphgkm4sy" path="res://drum_rehearsal_room.jpg" id="1_3g82r"]
+
+[node name="VenueCanvasLayer" type="CanvasLayer"]
+layer = -1
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+scale = Vector2(1.46407, 1.19889)
+texture = ExtResource("1_3g82r")
+centered = false

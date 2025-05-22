@@ -1,0 +1,37 @@
+[gd_scene load_steps=6 format=3 uid="uid://bpn5ygusrbhfj"]
+
+[ext_resource type="PackedScene" uid="uid://bbbb6u8u0oq47" path="res://scenes/note_3d.tscn" id="1_sn5qu"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_5cwgj"]
+sky_horizon_color = Color(0.662243, 0.671743, 0.686743, 1)
+ground_horizon_color = Color(0.662243, 0.671743, 0.686743, 1)
+
+[sub_resource type="Sky" id="Sky_sn5qu"]
+sky_material = SubResource("ProceduralSkyMaterial_5cwgj")
+
+[sub_resource type="Environment" id="Environment_3lofy"]
+background_mode = 2
+sky = SubResource("Sky_sn5qu")
+tonemap_mode = 2
+glow_enabled = true
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_5cwgj"]
+size = Vector2(10, 10)
+
+[node name="Highway3D" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_3lofy")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.866023, -0.433016, 0.250001, 0, 0.499998, 0.866027, -0.500003, 0.749999, -0.43301, 0, 0, 0)
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 8)
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+mesh = SubResource("PlaneMesh_5cwgj")
+
+[node name="Note3D" parent="." instance=ExtResource("1_sn5qu")]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 0.4, 3)

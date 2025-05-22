@@ -16,7 +16,6 @@ func ensure_directories(paths: Array):
 			var dir = DirAccess.open("user://")
 			if dir and not dir.dir_exists(cumulative.replace("user://", "")):
 				dir.make_dir(cumulative.replace("user://", ""))
-				print("HERE: " + segment)
 
 func ensure_json_file(path: String, default_data):
 	if not FileAccess.file_exists(path):

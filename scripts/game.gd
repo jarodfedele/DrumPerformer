@@ -1,8 +1,6 @@
-extends Node2D
+class_name Game extends Node
 
-@onready var song = $Song
-
-@onready var drum_kit_editor_highway = $DrumKitEditor/Highway
+@onready var current_scene = $CurrentScene
 
 func _init():
 	Global.store_gem_textures_in_list()
@@ -14,12 +12,16 @@ func _init():
 		Global.drum_kit["Lanes"] = 6
 		Utils.save_json_file(Directory.DRUM_KIT_PATH, Global.drum_kit)
 
-func _ready():
-	drum_kit_editor_highway.num_lanes = Global.drum_kit["Lanes"]
-	drum_kit_editor_highway.refresh_boundaries(false)
-		
-	SceneManager.init(self)
-	SceneManager.set_scene("MainMenu")
+func set_scene(file_name):
+	for child in current_scene.get_children():
+		child.queue_free()
+	var scene = load("res://scenes/" + file_name + ".tscn").instantiate()
+	current_scene.add_child(scene)
+	return scene
 	
+func _ready():
+	Global.game = self
+	
+	set_scene("main_menu")
 	await get_tree().process_frame
 	print("NODE COUNT: " + str(Utils.count_all_nodes(self)))

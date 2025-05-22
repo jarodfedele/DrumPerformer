@@ -1,0 +1,29 @@
+[gd_scene load_steps=6 format=3 uid="uid://bbbb6u8u0oq47"]
+
+[ext_resource type="Texture2D" uid="uid://50yyc11gigmx" path="res://assets/gems/snare/tint.png" id="1_c05wi"]
+[ext_resource type="Texture2D" uid="uid://d3m4nkv4exark" path="res://assets/gems/snare/base.png" id="2_0or3w"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_c05wi"]
+transparency = 2
+alpha_scissor_threshold = 0.224
+alpha_antialiasing_mode = 0
+albedo_color = Color(1, 0, 0, 1)
+albedo_texture = ExtResource("1_c05wi")
+
+[sub_resource type="QuadMesh" id="QuadMesh_0or3w"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_yijeu"]
+transparency = 2
+alpha_scissor_threshold = 0.107
+alpha_antialiasing_mode = 0
+albedo_texture = ExtResource("2_0or3w")
+
+[node name="Note3D" type="Node3D"]
+
+[node name="Base2" type="MeshInstance3D" parent="."]
+material_override = SubResource("StandardMaterial3D_c05wi")
+mesh = SubResource("QuadMesh_0or3w")
+
+[node name="Base" type="MeshInstance3D" parent="."]
+material_override = SubResource("StandardMaterial3D_yijeu")
+mesh = SubResource("QuadMesh_0or3w")

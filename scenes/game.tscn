@@ -1,12 +1,7 @@
-[gd_scene load_steps=28 format=3 uid="uid://dxq6r1i15jboc"]
+[gd_scene load_steps=23 format=3 uid="uid://dxq6r1i15jboc"]
 
 [ext_resource type="Script" uid="uid://khrkx3xyjf80" path="res://scripts/game.gd" id="1_oaba0"]
-[ext_resource type="PackedScene" uid="uid://bh1nljnb8bek0" path="res://scenes/main_menu.tscn" id="2_0sl42"]
 [ext_resource type="Script" uid="uid://d18b5kef2c43d" path="res://scripts/osc_sender.gd" id="2_8ool0"]
-[ext_resource type="PackedScene" uid="uid://d1b6ws7pv2dnd" path="res://scenes/song_select_menu.tscn" id="3_oaba0"]
-[ext_resource type="PackedScene" uid="uid://ia775m2g5opk" path="res://scenes/drum_kit_editor.tscn" id="6_h3rex"]
-[ext_resource type="PackedScene" uid="uid://bwli5jb25by71" path="res://scenes/song.tscn" id="6_m4url"]
-[ext_resource type="PackedScene" uid="uid://51c68pu2yhx4" path="res://scenes/profile_editor.tscn" id="7_fedci"]
 [ext_resource type="Script" uid="uid://bub7l12sfpwph" path="res://scripts/fps.gd" id="14_trtic"]
 [ext_resource type="Script" uid="uid://jdxrqq1lbydj" path="res://scripts/audio_stream_player.gd" id="15_264po"]
 [ext_resource type="Script" uid="uid://c3gdbg6cymqnb" path="res://scripts/hud.gd" id="22_37s47"]
@@ -28,18 +23,10 @@
 [ext_resource type="Script" uid="uid://biwux207uf71g" path="res://scripts/blend_mode_selector.gd" id="43_458eo"]
 [ext_resource type="Script" uid="uid://cktscbe6hgjvf" path="res://scripts/reload_gems_button.gd" id="44_0sl42"]
 
-[node name="Game" type="Node2D"]
+[node name="Game" type="Node"]
 script = ExtResource("1_oaba0")
 
-[node name="MainMenu" parent="." instance=ExtResource("2_0sl42")]
-
-[node name="SongSelectMenu" parent="." instance=ExtResource("3_oaba0")]
-
-[node name="Song" parent="." instance=ExtResource("6_m4url")]
-
-[node name="DrumKitEditor" parent="." instance=ExtResource("6_h3rex")]
-
-[node name="ProfileEditor" parent="." instance=ExtResource("7_fedci")]
+[node name="CurrentScene" type="Node" parent="."]
 
 [node name="OSCSender" type="Node" parent="."]
 script = ExtResource("2_8ool0")

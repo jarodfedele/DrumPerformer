@@ -1,7 +1,16 @@
-extends Node2D
+class_name Staff extends Node2D
+
+var is_playable: bool
+var x_min: int
+var y_min: int
+var x_size: int
+var y_size: int
+var x_max: int
+var y_max: int
+
+var center_staff_line_yPos
 
 @onready var song = get_parent()
-@onready var highway = $"../Highway"
 
 @onready var background = $Background
 @onready var notation_pages = $NotationPages
@@ -9,9 +18,6 @@ extends Node2D
 @onready var clef = $Clef
 @onready var staff_lines = $StaffLines
 @onready var seek_line = $SeekLine
-
-const NotationScene = preload("res://scenes/notation.tscn")
-const NotationPageScene = preload("res://scenes/notation_page.tscn")
 
 var notation_page_list
 var notation_time_list
@@ -22,13 +28,41 @@ const XPOS_INDEX = 0
 const NOTE_LIST_INDEX = 2
 const PAGE_INDEX = 3
 
+const STAFF_SCENE: PackedScene = preload("res://scenes/staff.tscn")
+const NOTATION_SCENE = preload("res://scenes/notation.tscn")
+const NOTATION_PAGE_SCENE = preload("res://scenes/notation_page.tscn")
+
+static func create(is_playable: bool, type: int,
+	x_min: int, y_min: int, x_size: int, y_size: int):
+		
+	var instance: Staff = STAFF_SCENE.instantiate()
+	
+	instance.is_playable = is_playable
+	
+	instance.x_min = x_min
+	instance.y_min = y_min
+	instance.x_size = x_size
+	instance.y_size = y_size
+	instance.x_max = instance.x_min + instance.x_size
+	instance.y_max = instance.y_min + instance.y_size
+
+	return instance
+
+func _ready():
+	center_staff_line_yPos = Global.center_staff_line_index*Global.STAFF_SPACE_HEIGHT + y_min
+	
+	draw_background()
+	draw_cover()
+	draw_clef()
+	draw_staff_lines()
+	
 func generate_notation_page_and_time_lists(notation_nodes, notation_nodes_copy, measure_line_x_list):
 	notation_page_list = []
 	var measure_offset = Global.MEASURE_START_SPACING - Global.NOTATION_DRAW_AREA_XOFFSET
 	var current_xOffset = 0
 	for i in range(measure_line_x_list.size()):
 		var current_measure_line_xMin = measure_line_x_list[i][0]
-		if current_measure_line_xMin >= Global.NOTATION_XMAX+current_xOffset-Global.NOTATION_DRAW_AREA_XOFFSET: #-100
+		if current_measure_line_xMin >= x_max+current_xOffset-Global.NOTATION_DRAW_AREA_XOFFSET: #-100
 			notation_page_list.append([current_xOffset - measure_offset, null])
 			var prev_measure_line_xMax = measure_line_x_list[i-1][1]
 			current_xOffset = prev_measure_line_xMax + measure_offset
@@ -77,7 +111,7 @@ func generate_notation_page_and_time_lists(notation_nodes, notation_nodes_copy, 
 	
 	for i in range(notation_page_list.size()):
 		notation_page_list[i].append([])
-		var notation_page = NotationPageScene.instantiate()
+		var notation_page = NOTATION_PAGE_SCENE.instantiate()
 		notation_page_list[i].append(notation_page)
 		notation_page.visible = false
 		notation_pages.add_child(notation_page)
@@ -97,14 +131,14 @@ func insert_notation_in_page(notation, page_number):
 	
 	var notation_page = notation_page_list[page_number][PAGE_INDEX]
 			
-	var xOffset = notation_page_list[page_number][XPOS_INDEX] - Global.NOTATION_XMIN
+	var xOffset = notation_page_list[page_number][XPOS_INDEX] - x_min
 	notation.xMin = notation.xMin - xOffset
 	notation.xMax = notation.xMax - xOffset
 	
-	notation.xMin -= Global.NOTATION_XMIN
-	notation.yMin -= Global.NOTATION_YMIN
-	notation.xMax -= Global.NOTATION_XMIN
-	notation.yMax -= Global.NOTATION_YMIN
+	notation.xMin -= x_min
+	notation.yMin -= y_min
+	notation.xMax -= x_min
+	notation.yMax -= y_min
 	
 	var sprite = notation.get_node("NotationSprite")
 	var line = notation.get_node("NotationLine")
@@ -113,7 +147,7 @@ func insert_notation_in_page(notation, page_number):
 	
 	var category = notation.category
 	
-	if category == "sprite":
+	if category == "sprite" or category == "notehead":
 		var file_path = Global.NOTATIONS_PATH + notation.file_name + ".png"
 		sprite.texture = load(file_path)
 
@@ -154,15 +188,15 @@ func populate_notations():
 	
 	for data in song.notation_data:
 		for i in range(2):
-			var notation = NotationScene.instantiate()
+			var notation = NOTATION_SCENE.instantiate()
 			
 			var category = data[0]
 			notation.category = category
 			notation.time = data[1]
-			notation.xMin = data[3]
-			notation.yMin = data[4]
-			notation.xMax = data[5]
-			notation.yMax = data[6]
+			notation.xMin = data[3] + x_min
+			notation.yMin = data[4] + y_min
+			notation.xMax = data[5] + x_min
+			notation.yMax = data[6] + y_min
 			var misc = data[7]
 			
 			var sprite = notation.get_node("NotationSprite")
@@ -170,7 +204,7 @@ func populate_notations():
 			var color_rect = notation.get_node("NotationColorRect")
 			var measure_number = notation.get_node("NotationMeasureNumber")
 			
-			if category == "sprite":
+			if category == "sprite" or category == "notehead":
 				sprite.visible = true
 				notation.file_name = data[2]
 				if misc == "measureline":
@@ -196,7 +230,7 @@ func populate_notations():
 	
 func get_current_notation_xOffset():
 	var page_number = get_current_page_number(true)
-	return float(notation_page_list[page_number][0] - Global.NOTATION_XMIN)
+	return float(notation_page_list[page_number][0] - x_min)
 			
 func get_current_notation_xPos():
 	var index = Utils.binary_search_closest_or_less(notation_time_list, song.current_song_time, 0)
@@ -226,10 +260,8 @@ func update_contents():
 		var current_notation_page = get_notation_page(current_page_number)
 		var prev_notation_page = get_notation_page(prev_page_number)
 		if current_notation_page:
-			print("CURRENT_PAGE: " + str(current_page_number))
 			current_notation_page.visible = true
 		if prev_notation_page:
-			print("PREV_PAGE: " + str(current_page_number))
 			prev_notation_page.visible = false
 	prev_page_number = current_page_number
 	
@@ -237,8 +269,8 @@ func update_contents():
 	seek_line.clear_points()
 	var seek_x = get_current_notation_xPos()
 	if seek_x:
-		seek_line.add_point(Vector2(seek_x, Global.NOTATION_YMIN))
-		seek_line.add_point(Vector2(seek_x, Global.NOTATION_YMAX))
+		seek_line.add_point(Vector2(seek_x, y_min))
+		seek_line.add_point(Vector2(seek_x, y_max))
 
 func take_screenshots():
 	if notation_page_list.size() == 0:
@@ -272,7 +304,7 @@ func take_screenshots():
 		
 		tex_rect.stretch_mode = TextureRect.STRETCH_SCALE
 		
-		tex_rect.position = Vector2(Global.NOTATION_XMIN, Global.NOTATION_YMIN)
+		tex_rect.position = Vector2(x_min, y_min)
 		tex_rect.size = Vector2(Global.NOTATION_XSIZE*2, Global.NOTATION_YSIZE) #TODO
 		
 		tex_rect.visible = true
@@ -285,29 +317,29 @@ func take_screenshots():
 	print("CHILDREN: " + str(notation_pages.get_children().size()))
 
 func draw_background():
-	var points = [
-		Vector2(Global.NOTATION_XMIN, Global.NOTATION_YMIN),
-		Vector2(Global.NOTATION_XMAX, Global.NOTATION_YMIN),
-		Vector2(Global.NOTATION_XMAX, Global.NOTATION_YMAX),
-		Vector2(Global.NOTATION_XMIN, Global.NOTATION_YMAX)
+	background.polygon = [
+		Vector2(x_min, y_min),
+		Vector2(x_max, y_min),
+		Vector2(x_max, y_max),
+		Vector2(x_min, y_max)
 	]
-	background.draw_polygon(points, [Global.STAFF_BACKGROUND_COLOR])
-	
+	background.color = Global.STAFF_BACKGROUND_COLOR
+
 func draw_cover():
-	var xMax = Global.NOTATION_DRAW_AREA_XOFFSET+Global.NOTATION_BOUNDARYXMINOFFSET+12
-	var points = [
-		Vector2(Global.NOTATION_XMIN, Global.NOTATION_YMIN),
-		Vector2(xMax, Global.NOTATION_YMIN),
-		Vector2(xMax, Global.NOTATION_YMAX),
-		Vector2(Global.NOTATION_XMIN, Global.NOTATION_YMAX)
+	var cover_x_max = Global.NOTATION_DRAW_AREA_XOFFSET+Global.NOTATION_BOUNDARYXMINOFFSET+12
+	cover.polygon = [
+		Vector2(x_min, y_min),
+		Vector2(cover_x_max, y_min),
+		Vector2(cover_x_max, y_max),
+		Vector2(x_min, y_max)
 	]
-	cover.draw_polygon(points, [Global.STAFF_BACKGROUND_COLOR])
+	cover.color = Global.STAFF_BACKGROUND_COLOR
 
 func draw_clef():
-	var xMin = Global.STAFF_SPACE_HEIGHT * 2 + Global.NOTATION_XMIN
-	var yMin = Global.center_staff_line - Global.STAFF_SPACE_HEIGHT
+	var xMin = Global.STAFF_SPACE_HEIGHT * 2 + x_min
+	var yMin = center_staff_line_yPos - Global.STAFF_SPACE_HEIGHT
 	var xMax = xMin + 150 #TODO
-	var yMax = Global.center_staff_line + Global.STAFF_SPACE_HEIGHT
+	var yMax = center_staff_line_yPos + Global.STAFF_SPACE_HEIGHT
 	
 	var xCenter = (xMin + xMax) * 0.5
 	var yCenter = (yMin + yMax) * 0.5
@@ -317,16 +349,15 @@ func draw_clef():
 	clef.position = Vector2(xMin + 10, yCenter)
 
 func draw_staff_lines():
-	# Clean up old notes
 	for child in staff_lines.get_children():
 		child.queue_free()
-
-	# Create new notes
-	for yPos in song.staffline_data:
+	
+	for i in range(5):
+		var yPos = center_staff_line_yPos + (i-2)*Global.STAFF_SPACE_HEIGHT
 		var line = Line2D.new()
 		line.default_color = Color(0, 0, 0)
 		line.width = 2
-		line.add_point(Vector2(Global.NOTATION_XMIN, yPos))
-		line.add_point(Vector2(Global.NOTATION_XMAX, yPos))
+		line.add_point(Vector2(x_min, yPos))
+		line.add_point(Vector2(x_max, yPos))
 
 		staff_lines.add_child(line)

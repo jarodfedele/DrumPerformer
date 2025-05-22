@@ -1,39 +1,36 @@
-extends Node2D
+class_name Note extends Node2D
 
 const LightingFrameScene = preload("res://scenes/lighting_frame.tscn")
 
 var time : float
 var gem : String
-var gem_path : String
-var original_gem_path : String
+var normalized_position : float
+var velocity : int
+var pedal_val : int
 var color_r : float
 var color_g : float
 var color_b : float
 var color_a : float
-var grayscale = false
-var normalized_position : float
-var lane_start : int
-var lane_end : int
-var velocity : int
-var pedal_val : int
+var note_index : int
+var pad_index : int
 var positioning_shift_x : float
 var positioning_shift_y : float
 var positioning_scale : float
 var blend_tint : int
 var blend_lighting : int
+var highway
+
+var gem_path : String
+var grayscale : bool = false
 
 var hit_state
-
-var note_index
-var pad_index
 
 var frames
 
 var aspect_ratio : float
 
-var lighting_frame_file_name = "lighting_frames.txt"
+const lighting_frame_file_name = "lighting_frames.txt"
 
-@onready var highway = get_parent().get_parent()
 @onready var notes = get_parent()
 @onready var tint = $Tint
 @onready var tint_colored = $TintColored
@@ -41,6 +38,48 @@ var lighting_frame_file_name = "lighting_frames.txt"
 @onready var ring = $Ring
 @onready var lighting = $Lighting
 
+const NOTE_SCENE: PackedScene = preload("res://scenes/note.tscn")
+
+static func create(time: float, gem: String, normalized_position: float, velocity: int, pedal_val: int,
+	color_r: float, color_g: float, color_b: float, color_a: float,
+	note_index: int, pad_index: int,
+	positioning_shift_x: float, positioning_shift_y: float, positioning_scale: float, blend_tint: int, blend_lighting: int,
+	z_order,
+	highway):
+		
+	var instance: Note = NOTE_SCENE.instantiate()
+	
+	instance.time = time
+	instance.gem = gem
+	instance.normalized_position = normalized_position
+	instance.velocity = velocity
+	instance.pedal_val = pedal_val
+	
+	instance.color_r = color_r
+	instance.color_g = color_g
+	instance.color_b = color_b
+	instance.color_a = color_a
+	
+	instance.note_index = note_index
+	instance.pad_index = pad_index
+	
+	instance.positioning_shift_x = positioning_shift_x
+	instance.positioning_shift_y = positioning_shift_y
+	instance.positioning_scale = positioning_scale
+	instance.blend_tint = blend_tint
+	instance.blend_lighting = blend_lighting
+	
+	instance.z_index = z_order
+	
+	instance.highway = highway
+	
+	instance.gem_path = Global.GEMS_PATH + instance.gem + "/"
+	
+	return instance
+
+func _ready():
+	set_sprite()
+			
 func set_texture(scene, list_index):
 	var tex = Global.get_gem_texture(gem, list_index)
 	if tex:
@@ -94,7 +133,7 @@ func set_sprite():
 	ring.modulate = ring_color
 
 	frames = SpriteFrames.new()
-	var text = Utils.read_text_file(original_gem_path + lighting_frame_file_name)
+	var text = Utils.read_text_file(gem_path + lighting_frame_file_name)
 	var lines = text.split("\n")
 	var current_section = null
 	for file_path in lines:
@@ -169,8 +208,7 @@ func update_position():
 	if hit_state == true:
 		return
 	
-	if hit_state != false and highway.hit_time_min > time:
-		print(highway.hit_time_max)
+	if highway.is_playable and hit_state != false and highway.hit_time_min > time:
 		miss()
 		
 	var is_visible = (time >= highway.visible_time_min - 0.4 and time <= highway.visible_time_max)
@@ -186,11 +224,11 @@ func update_position():
 	var lane_start_x2 = lane_bounds[1]
 	var lane_end_x1 = lane_bounds[2]
 	var lane_end_x2 = lane_bounds[3]
-	
-	var note_yMax = highway.get_y_pos_from_time(time, false)
+		
+	var note_yMax = highway.get_y_pos_from_time(time)
 
-	var note_xMin = Utils.get_x_at_y(lane_start_x2, Global.HIGHWAY_YMIN, lane_start_x1, Global.HIGHWAY_YMAX, note_yMax)
-	var note_xMax = Utils.get_x_at_y(lane_end_x2, Global.HIGHWAY_YMIN, lane_end_x1, Global.HIGHWAY_YMAX, note_yMax)
+	var note_xMin = Utils.get_x_at_y(lane_start_x2, highway.y_min, lane_start_x1, highway.y_max, note_yMax)
+	var note_xMax = Utils.get_x_at_y(lane_end_x2, highway.y_min, lane_end_x1, highway.y_max, note_yMax)
 	
 	var note_xSize = note_xMax - note_xMin
 

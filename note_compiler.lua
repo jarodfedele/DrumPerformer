@@ -607,7 +607,7 @@ function runCompiler(gamedataFileText, drumkitFileText, gemNameTable, configText
     end
   
   --TODO: check for 2 of the same pad at the same time
-	print(outputTextFilePath)
+  
   local file = io.open(outputTextFilePath, "w+")
   file:write(numLanes .. "\n" .. table.concat(masterList, "\n"))
   file:close()

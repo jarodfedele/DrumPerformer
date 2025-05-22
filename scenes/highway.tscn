@@ -1,47 +1,67 @@
-[gd_scene load_steps=6 format=3 uid="uid://dlveaao0ahvmv"]
+[gd_scene load_steps=5 format=3 uid="uid://dlveaao0ahvmv"]
 
 [ext_resource type="Script" uid="uid://b24lsnuvjawt1" path="res://scripts/highway.gd" id="1_4mhbw"]
-[ext_resource type="Script" uid="uid://c5kgfqewyj537" path="res://scripts/beat_lines.gd" id="2_jfxlv"]
-[ext_resource type="Script" uid="uid://c1wg10ctckhvb" path="res://scripts/notes.gd" id="3_yyhid"]
-[ext_resource type="Shader" uid="uid://bgc2d3kg75655" path="res://shaders/highway_cover.gdshader" id="4_n7pte"]
+[ext_resource type="Shader" uid="uid://cofnmpc2ajabr" path="res://shaders/gradual_fade.gdshader" id="2_iwric"]
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_j4iwk"]
-shader = ExtResource("4_n7pte")
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_4mhbw"]
+shader = ExtResource("2_iwric")
+shader_parameter/fade_start = 100.0
+shader_parameter/fade_end = 0.0
+shader_parameter/viewport_size = Vector2(0, 0)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_iwric"]
+shader = ExtResource("2_iwric")
+shader_parameter/fade_start = 100.0
+shader_parameter/fade_end = 0.0
+shader_parameter/viewport_size = Vector2(0, 0)
 
 [node name="Highway" type="Node2D"]
 script = ExtResource("1_4mhbw")
 
-[node name="Background" type="Polygon2D" parent="."]
+[node name="ContentsSubViewport" type="SubViewport" parent="."]
+transparent_bg = true
+handle_input_locally = false
+size = Vector2i(1920, 1080)
+render_target_update_mode = 4
+
+[node name="Background" type="Polygon2D" parent="ContentsSubViewport"]
+unique_name_in_owner = true
 color = Color(0, 0, 0, 1)
 
-[node name="HiHatPedalOverlays" type="Node2D" parent="."]
-position = Vector2(0, 1)
-
-[node name="BeatLines" type="Node2D" parent="."]
-script = ExtResource("2_jfxlv")
-
-[node name="Hitbox" type="Polygon2D" parent="."]
+[node name="Hitbox" type="Polygon2D" parent="ContentsSubViewport"]
+unique_name_in_owner = true
 color = Color(1, 1, 1, 0.266667)
 
-[node name="Strikeline" type="Line2D" parent="."]
+[node name="Strikeline" type="Line2D" parent="ContentsSubViewport"]
+unique_name_in_owner = true
 width = 6.0
 
-[node name="LaneLines" type="Node2D" parent="."]
+[node name="LaneLines" type="Node2D" parent="ContentsSubViewport"]
+unique_name_in_owner = true
 
-[node name="SustainOverlays" type="Node2D" parent="."]
-position = Vector2(0, 1)
-
-[node name="Notes" type="Node2D" parent="."]
-script = ExtResource("3_yyhid")
-
-[node name="Border" type="Line2D" parent="."]
+[node name="Border" type="Line2D" parent="ContentsSubViewport"]
+unique_name_in_owner = true
 width = 4.0
 default_color = Color(0.632387, 0.253045, 0.5027, 1)
 
-[node name="Cover" type="Polygon2D" parent="."]
-z_index = 16
-material = SubResource("ShaderMaterial_j4iwk")
-uv = PackedVector2Array(0, 0, 1, 0, 1, 1, 0, 1)
+[node name="HiHatPedalOverlays" type="Node2D" parent="ContentsSubViewport"]
+unique_name_in_owner = true
+position = Vector2(0, 1)
+
+[node name="BeatLines" type="Node2D" parent="ContentsSubViewport"]
+unique_name_in_owner = true
+
+[node name="SustainOverlays" type="Node2D" parent="ContentsSubViewport"]
+unique_name_in_owner = true
+position = Vector2(0, 1)
+
+[node name="Notes" type="Node2D" parent="ContentsSubViewport"]
+unique_name_in_owner = true
+material = SubResource("ShaderMaterial_4mhbw")
+
+[node name="ContentsDisplay" type="Sprite2D" parent="."]
+material = SubResource("ShaderMaterial_iwric")
+centered = false
 
 [node name="DebugLabels" type="VBoxContainer" parent="."]
 unique_name_in_owner = true

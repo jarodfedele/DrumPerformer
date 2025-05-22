@@ -1,6 +1,20 @@
-extends Node2D
+class_name Highway extends Node2D
 
-var num_lanes: float = 6.0 #make sure this is a float!
+var num_lanes: int
+var is_playable: bool
+var x_min: int
+var y_min: int
+var x_size: int
+var y_size: int
+var x_max: int
+var y_max: int
+var y_fade_start: float
+var y_strikeline: float
+var beatline_data: Array
+var hihat_pedal_data: Array
+var sustain_data: Array
+var note_data: Array
+
 var lane_position_list: Array = []
 var horizon_x: float = 0.0
 var horizon_y: float = 0.0
@@ -19,8 +33,6 @@ var overhit_count = 0
 var next_pad_gems
 var next_pad_velocities
 
-var is_playable = true
-
 const BeatLineScene = preload("res://scenes/beatline.tscn")
 const HiHatOverlayScene = preload("res://scenes/hihat_overlay.tscn")
 const SustainOverlayScene = preload("res://scenes/sustain_overlay.tscn")
@@ -29,18 +41,20 @@ const NoteScene = preload("res://scenes/note.tscn")
 @onready var song_audio_player = get_node("/root/Game/AudioManager/SongAudioPlayer")
 @onready var song = get_parent()
 
-@onready var notes = $Notes
-@onready var beat_lines = $BeatLines
-@onready var hihat_pedal_overlays = $HiHatPedalOverlays
-@onready var sustain_overlays = $SustainOverlays
+@onready var contents_sub_viewport = $ContentsSubViewport
+@onready var contents_display = $ContentsDisplay
 
-@onready var hitbox = $Hitbox
-@onready var strikeline = $Strikeline
+@onready var notes = %Notes
+@onready var beatlines = %BeatLines
+@onready var hihat_pedal_overlays = %HiHatPedalOverlays
+@onready var sustain_overlays = %SustainOverlays
 
-@onready var background = $Background
-@onready var lane_lines = $LaneLines
-@onready var border = $Border
-@onready var cover = $Cover
+@onready var hitbox = %Hitbox
+@onready var strikeline = %Strikeline
+
+@onready var background = %Background
+@onready var lane_lines = %LaneLines
+@onready var border = %Border
 
 @onready var debug_labels = %DebugLabels
 @onready var hit_count_label = %HitCountLabel
@@ -49,11 +63,46 @@ const NoteScene = preload("res://scenes/note.tscn")
 
 var interpolated_texture_shader := preload("res://shaders//interpolated_texture.gdshader")
 
+const HIGHWAY_SCENE: PackedScene = preload("res://scenes/highway.tscn")
+
 const hihat_foot_tex = preload("res://assets//other//hihatfoot.png")
 const tremolo_tex = preload("res://assets//other//tremolo.png")
 const buzz_tex = preload("res://assets//other//buzz.png")
 
+static func create(num_lanes: int, is_playable: bool, 
+	x_min: int, y_min: int, x_size: int, y_size: int, 
+	beatline_data, hihat_pedal_data, sustain_data, note_data):
+		
+	var instance: Highway = HIGHWAY_SCENE.instantiate()
+	
+	instance.num_lanes = num_lanes
+	instance.is_playable = is_playable
+	
+	instance.x_min = x_min
+	instance.y_min = y_min
+	instance.x_size = x_size
+	instance.y_size = y_size
+	instance.x_max = instance.x_min + instance.x_size
+	instance.y_max = instance.y_min + instance.y_size
+	
+	instance.beatline_data = beatline_data
+	instance.hihat_pedal_data = hihat_pedal_data
+	instance.sustain_data = sustain_data
+	instance.note_data = note_data
+	
+	instance.y_fade_start = instance.y_min + instance.y_size*0.2
+	instance.y_strikeline = instance.y_max - instance.y_size*0.2
+	
+	return instance
+
 func _ready():
+	refresh_boundaries()
+	
+	populate_beatlines()
+	populate_hihat_pedal_overlays()
+	populate_sustain_overlays()
+	populate_notes()
+	
 	next_pad_gems = []
 	next_pad_velocities = []
 	var pad_list = Global.drum_kit["Pads"]
@@ -66,80 +115,81 @@ func _ready():
 	miss_count_label.text = "Misses: 0"
 	overhit_count_label.text = "Overhits: 0"
 	
+	debug_labels.visible = is_playable
+	
 	MidiInputManager.pad_send.connect(_on_pad_received)
 	
-func set_playable(playable):
-	is_playable	= playable
-	if not is_playable:
-		debug_labels.visible = false
+	#TODO: test
+	contents_display.texture = contents_sub_viewport.get_texture()
+	contents_display.position = Vector2.ZERO
 		
 func update_contents(current_time):
 	visible_time_min = current_time
 	visible_time_max = visible_time_min + Global.VISIBLE_TIMERANGE
 	
-	var hit_window_seconds = Global.HIGHWAY_HITWINDOW_MS * 0.001
-	hit_time_min = current_time - hit_window_seconds
-	hit_time_max = current_time + hit_window_seconds
-	
-	draw_hitbox()
-	draw_strikeline()
+	if is_playable:
+		var hit_window_seconds = Global.HIGHWAY_HITWINDOW_MS * 0.001
+		hit_time_min = current_time - hit_window_seconds
+		hit_time_max = current_time + hit_window_seconds
 		
-	notes.update_positions()
-	beat_lines.update_positions()
+		draw_hitbox()
+		draw_strikeline()
+	
+	for beatline in beatlines.get_children():
+		beatline.update_position()
+	for note in notes.get_children():
+		note.update_position()
 
-func refresh_boundaries(is_song):
-	reset_lane_position_list() #TODO: dependent on user profile
+func refresh_boundaries():
+	reset_lane_position_list()
 
 	draw_background()
 	draw_lane_lines()
 	draw_border()
-	draw_cover()
+	apply_note_fade_shader()
 
+func apply_note_fade_shader():
+	var viewport_size = get_viewport().get_visible_rect().size
+
+	contents_display.material.set_shader_parameter("viewport_size", viewport_size)
+	contents_display.material.set_shader_parameter("fade_start", y_fade_start)
+	contents_display.material.set_shader_parameter("fade_end", y_min)
+	
 func overhit():
 	overhit_count += 1
 	overhit_count_label.text = "Overhits: " + str(overhit_count)
 	
-func add_beatline_to_highway(time, color_r, color_g, color_b, thickness):
-	var beatline = BeatLineScene.instantiate()
-	
-	beatline.time = time
-	beatline.color_r = color_r
-	beatline.color_g = color_g
-	beatline.color_b = color_b
-	beatline.thickness = thickness
-
-	beat_lines.add_child(beatline)
+func add_beatline_to_highway(time, type):
+	var beatline = Beatline.create(time, type, self)
+	beatlines.add_child(beatline)
 		
-func populate_beat_lines(beatline_data):
-	for child in beat_lines.get_children():
+func populate_beatlines():
+	for child in beatlines.get_children():
 		child.queue_free()
 
 	for data in beatline_data:
 		var time = data[0]
-		var color_r = data[1]
-		var color_g = data[2]
-		var color_b = data[3]
-		var thickness = data[4]
-		
-		add_beatline_to_highway(time, color_r, color_g, color_b, thickness)
+		var type = data[1]
+		add_beatline_to_highway(time, type)
 
-func populate_hihat_pedal_overlays(hihatpedal_data):
-	# Clean up old notes
+func populate_hihat_pedal_overlays():
 	for child in hihat_pedal_overlays.get_children():
 		child.queue_free()
 
-	# Create new notes
-	for data in hihatpedal_data:
+	for data in hihat_pedal_data:
 		var hihat_overlay = HiHatOverlayScene.instantiate()
 		
-		var bottom_left_x = data[0]
-		var top_left_x = data[1]
-		var bottom_right_x = data[2]
-		var top_right_x = data[3]
-		var color_r = data[4]
-		var color_g = data[5]
-		var color_b = data[6]
-		var cc_points = data[7]
+		var normalized_position = data[0]
+		var lane_bounds = get_lane_bounds(normalized_position)
+		var bottom_left_x = lane_bounds[0]
+		var top_left_x = lane_bounds[1]
+		var bottom_right_x = lane_bounds[2]
+		var top_right_x = lane_bounds[3]
+		
+		var color_r = data[1]
+		var color_g = data[2]
+		var color_b = data[3]
+		var cc_points = data[4]
 		
 		hihat_overlay.texture = hihat_foot_tex
 		
@@ -150,8 +200,8 @@ func populate_hihat_pedal_overlays(hihatpedal_data):
 		hihat_overlay.material = mat
 		hihat_overlay.material.set_shader_parameter("tint_color", Color(color_r/255.0, color_g/255.0, color_b/255.0))
 		
-		var quad_yMin = Global.HIGHWAY_YMIN
-		var quad_yMax = Global.HIGHWAY_YMAX
+		var quad_yMin = y_min
+		var quad_yMax = y_max
 		var quad_ySize = float(quad_yMax - quad_yMin)
 		hihat_overlay.quad_yMin = quad_yMin
 		hihat_overlay.quad_yMax = quad_yMax
@@ -233,24 +283,25 @@ func populate_hihat_pedal_overlays(hihatpedal_data):
 		hihat_overlay.points = alpha_values
 		hihat_pedal_overlays.add_child(hihat_overlay)
 
-func populate_sustain_overlays(sustain_data):
-	# Clean up old notes
+func populate_sustain_overlays():
 	for child in sustain_overlays.get_children():
 		child.queue_free()
 
-	# Create new notes
 	for data in sustain_data:
 		var sustain_overlay = SustainOverlayScene.instantiate()
 		
-		var bottom_left_x = data[0]
-		var top_left_x = data[1]
-		var bottom_right_x = data[2]
-		var top_right_x = data[3]
-		var color_r = data[4]
-		var color_g = data[5]
-		var color_b = data[6]
-		var sustain_type = data[7]
-		var cc_points = data[8]
+		var normalized_position = data[0]
+		var lane_bounds = get_lane_bounds(normalized_position)
+		var bottom_left_x = lane_bounds[0]
+		var top_left_x = lane_bounds[1]
+		var bottom_right_x = lane_bounds[2]
+		var top_right_x = lane_bounds[3]
+		
+		var color_r = data[1]
+		var color_g = data[2]
+		var color_b = data[3]
+		var sustain_type = data[4]
+		var cc_points = data[5]
 		
 		if sustain_type == "tremolo":
 			sustain_overlay.texture = tremolo_tex
@@ -265,8 +316,8 @@ func populate_sustain_overlays(sustain_data):
 		sustain_overlay.material.set_shader_parameter("mode", 1)
 		sustain_overlay.material.set_shader_parameter("tint_color", Color(color_r/255.0, color_g/255.0, color_b/255.0))
 		
-		var quad_yMin = Global.HIGHWAY_YMIN
-		var quad_yMax = Global.HIGHWAY_YMAX
+		var quad_yMin = y_min
+		var quad_yMax = y_max
 		var quad_ySize = float(quad_yMax - quad_yMin)
 		sustain_overlay.quad_yMin = quad_yMin
 		sustain_overlay.quad_yMax = quad_yMax
@@ -359,7 +410,7 @@ func update_next_pad(pad_index, recent_note_index):
 		if note.pad_index == pad_index:
 			next_pad_gems[pad_index] = note.gem
 			next_pad_velocities[pad_index] = note.velocity
-			print("NEXT GEM: " + note.gem + " " + str(pad_index))
+			#print("NEXT GEM: " + note.gem + " " + str(pad_index))
 			return
 	next_pad_gems[pad_index] = -1
 	next_pad_velocities[pad_index] = -1
@@ -438,60 +489,36 @@ func try_to_hit_note(pad_index, zone_name, pitch):
 			
 	overhit()
 			
-func add_note_to_highway(time, gem, normalized_position, pad_index, velocity, pedal_val):
-	var note = NoteScene.instantiate()
+func add_note_to_highway(time, gem, normalized_position, pad_index, velocity, pedal_val, note_index):
+	var positioning_shift_x = Global.get_gem_config_setting(gem, "shiftx", 0)
+	var positioning_shift_y = Global.get_gem_config_setting(gem, "shifty", 0)
+	var positioning_scale = Global.get_gem_config_setting(gem, "scale", 1)
+	var blend_tint = Global.get_gem_config_setting(gem, "blend_tint", 0)
+	var blend_lighting = Global.get_gem_config_setting(gem, "blend_lighting", 0)
+	var z_order = Global.get_gem_config_setting(gem, "zorder", null)
+	var color_r = Global.get_gem_config_setting(gem, "color_r", null)
+	var color_g = Global.get_gem_config_setting(gem, "color_g", null)
+	var color_b = Global.get_gem_config_setting(gem, "color_b", null)
+	var color_a = Global.get_gem_config_setting(gem, "color_a", null)
 	
-	note.time = time
-	note.gem = gem
-	note.normalized_position = normalized_position
-	note.pad_index = pad_index
-	note.velocity = velocity
-	note.pedal_val = pedal_val
-	note.gem_path = Global.GEMS_PATH + note.gem + "/"
-	note.original_gem_path = Global.ORIGINAL_GEMS_PATH + note.gem + "/"
-	
-	var positioning_shift_x = Global.get_gem_config_setting(gem, "shiftx")
-	if positioning_shift_x:
-		note.positioning_shift_x = positioning_shift_x
-	var positioning_shift_y = Global.get_gem_config_setting(gem, "shifty")
-	if positioning_shift_y:
-		note.positioning_shift_y = positioning_shift_y
-	var positioning_scale = Global.get_gem_config_setting(gem, "scale")
-	if positioning_scale:
-		note.positioning_scale = positioning_scale
-	var blend_tint = Global.get_gem_config_setting(gem, "blend_tint")
-	if blend_tint:
-		note.blend_tint = blend_tint
-	var blend_lighting = Global.get_gem_config_setting(gem, "blend_lighting")
-	if blend_lighting:
-		note.blend_lighting = blend_lighting
-	var z_order = Global.get_gem_config_setting(gem, "zorder")
-	if z_order:
-		note.z_index = z_order
-	var color_r = Global.get_gem_config_setting(gem, "color_r")
-	if color_r:
-		note.color_r = color_r
-	var color_g = Global.get_gem_config_setting(gem, "color_g")
-	if color_g:
-		note.color_g = color_g
-	var color_b = Global.get_gem_config_setting(gem, "color_b")
-	if color_b:
-		note.color_b = color_b
-	var color_a = Global.get_gem_config_setting(gem, "color_a")
-	if color_a:
-		note.color_a = color_a
+	var note = Note.create(time, gem, normalized_position, velocity, pedal_val,
+	color_r, color_g, color_b, color_a,
+	note_index, pad_index,
+	positioning_shift_x, positioning_shift_y, positioning_scale, blend_tint, blend_lighting, z_order,
+	self)
 	
 	notes.add_child(note)
-	note.set_sprite()
-			
-func populate_notes(note_data):
+
+func populate_notes():
 	for child in notes.get_children():
 		child.queue_free()
 	
 	# Create new notes
 	note_data.sort_custom(func(a, b): return a[0] > b[0])
 
-	for data in note_data:
+	for i in range(note_data.size()):
+		var data = note_data[i]
+		
 		var time = data[0]
 		var gem = data[1]
 		var normalized_position = data[2]
@@ -499,13 +526,8 @@ func populate_notes(note_data):
 		var velocity = data[4]
 		var pedal_val = data[5]
 		
-		add_note_to_highway(time, gem, normalized_position, pad_index, velocity, pedal_val)
-	
-	var note_list = get_notes()
-	for note_index in range(note_list.size()):
-		var note = note_list[note_index]
-		note.note_index = note_index
-		print("NOTE INDEX: " + str(note_data.size()))
+		var note_index = note_data.size() - 1 - i
+		add_note_to_highway(time, gem, normalized_position, pad_index, velocity, pedal_val, note_index)
 		
 #for cover
 func generate_uvs(points: PackedVector2Array) -> PackedVector2Array:
@@ -525,8 +547,8 @@ func generate_uvs(points: PackedVector2Array) -> PackedVector2Array:
 
 func draw_hitbox():
 	var hit_window_seconds = Global.HIGHWAY_HITWINDOW_MS * 0.001
-	var yMin = get_y_pos_from_time(hit_time_max, false)
-	var yMax = get_y_pos_from_time(hit_time_min, false)
+	var yMin = get_y_pos_from_time(hit_time_max)
+	var yMax = get_y_pos_from_time(hit_time_min)
 	
 	var border_points = get_border_points()
 	var bottom_left = border_points[0]
@@ -534,7 +556,6 @@ func draw_hitbox():
 	var top_right = border_points[2]
 	var top_left = border_points[3]
 	
-	var yPos = Global.HIGHWAY_YSTRIKELINE
 	var xMin1 = Utils.get_x_at_y(bottom_left.x, bottom_left.y, top_left.x, top_left.y, yMax)
 	var xMin2 = Utils.get_x_at_y(bottom_left.x, bottom_left.y, top_left.x, top_left.y, yMin)
 	var xMax1 = Utils.get_x_at_y(bottom_right.x, bottom_right.y, top_right.x, top_right.y, yMax)
@@ -556,11 +577,10 @@ func draw_strikeline():
 	var top_right = border_points[2]
 	var top_left = border_points[3]
 	
-	var yPos = Global.HIGHWAY_YSTRIKELINE
-	var xMin = Utils.get_x_at_y(bottom_left.x, bottom_left.y, top_left.x, top_left.y, yPos)
-	var xMax = Utils.get_x_at_y(bottom_right.x, bottom_right.y, top_right.x, top_right.y, yPos)
+	var xMin = Utils.get_x_at_y(bottom_left.x, bottom_left.y, top_left.x, top_left.y, y_strikeline)
+	var xMax = Utils.get_x_at_y(bottom_right.x, bottom_right.y, top_right.x, top_right.y, y_strikeline)
 	
-	strikeline.points = [Vector2(xMin, yPos), Vector2(xMax, yPos)]
+	strikeline.points = [Vector2(xMin, y_strikeline), Vector2(xMax, y_strikeline)]
 	
 func draw_background():
 	var border_points = get_border_points()
@@ -575,8 +595,8 @@ func draw_lane_lines():
 	
 	for i in range(num_lanes-1):
 		var lane = i + 1
-		var bottom_left = Vector2(get_lane_position(lane)[0], Global.HIGHWAY_YMAX)
-		var top_left = Vector2(get_lane_position(lane)[1], Global.HIGHWAY_YMIN)
+		var bottom_left = Vector2(get_lane_position(lane)[0], y_max)
+		var top_left = Vector2(get_lane_position(lane)[1], y_min)
 	
 		var line = Line2D.new()
 		line.add_point(bottom_left)
@@ -599,24 +619,6 @@ func draw_border():
 	border.add_point(border_points[2])
 	#border.add_point(border_points[3])
 	
-func draw_cover():
-	var shader = load("res://shaders/highway_cover.gdshader")
-
-	var shader_material = ShaderMaterial.new()
-	shader_material.shader = shader
-
-	cover.material = shader_material
-	
-	var image = Image.create(1, 1, false, Image.FORMAT_RGBA8)
-	image.fill(Color(1, 1, 1, 1))
-	var dummy_texture = ImageTexture.create_from_image(image)
-	cover.texture = dummy_texture
-	
-	var border_points = get_fade_points()
-
-	cover.polygon = border_points
-	cover.uv = generate_uvs(border_points)
-	
 func get_lane_position(lane: int) -> Array:
 	if lane >= 0 and lane < lane_position_list.size():
 		var data = lane_position_list[lane]
@@ -624,10 +626,10 @@ func get_lane_position(lane: int) -> Array:
 	return []
 
 func get_border_points() -> Array:
-	var top_left = Vector2(get_lane_position(0)[1], Global.HIGHWAY_YMIN)
-	var top_right = Vector2(get_lane_position(num_lanes)[1], Global.HIGHWAY_YMIN)
-	var bottom_right = Vector2(get_lane_position(num_lanes)[0], Global.HIGHWAY_YMAX)
-	var bottom_left = Vector2(get_lane_position(0)[0], Global.HIGHWAY_YMAX)
+	var top_left = Vector2(get_lane_position(0)[1], y_min)
+	var top_right = Vector2(get_lane_position(num_lanes)[1], y_min)
+	var bottom_right = Vector2(get_lane_position(num_lanes)[0], y_max)
+	var bottom_left = Vector2(get_lane_position(0)[0], y_max)
 	
 	return [bottom_left, bottom_right, top_right, top_left]
 
@@ -639,22 +641,18 @@ func get_fade_points() -> Array:
 	var top_right = border_points[2]
 	var top_left = border_points[3]
 	
-	var fade_left_x = Utils.get_x_at_y(bottom_left.x, bottom_left.y, top_left.x, top_left.y, Global.HIGHWAY_YFADESTART)
-	var fade_right_x = Utils.get_x_at_y(bottom_right.x, bottom_right.y, top_right.x, top_right.y, Global.HIGHWAY_YFADESTART)
+	var fade_left_x = Utils.get_x_at_y(bottom_left.x, bottom_left.y, top_left.x, top_left.y, y_fade_start)
+	var fade_right_x = Utils.get_x_at_y(bottom_right.x, bottom_right.y, top_right.x, top_right.y, y_fade_start)
 
-	bottom_right = Vector2(fade_right_x, Global.HIGHWAY_YFADESTART)
-	bottom_left = Vector2(fade_left_x, Global.HIGHWAY_YFADESTART)
+	bottom_right = Vector2(fade_right_x, y_fade_start)
+	bottom_left = Vector2(fade_left_x, y_fade_start)
 	
 	return [bottom_left, bottom_right, top_right, top_left]
 
 func get_lane_bound(percentage):
 	var angle = Utils.convert_range(percentage, 0, 0.5, Global.MAX_ANGLE_DEGREES, 0)
-
-	var x1 = Global.HIGHWAY_XMIN + Global.HIGHWAY_XSIZE*percentage
-	var y_max = Global.HIGHWAY_YMAX
-	var y_min = Global.HIGHWAY_YMIN
+	var x1 = x_min + x_size*percentage
 	var x2 = Utils.rotate_line(x1, y_max, x1, y_min, angle)
-
 	return [x1, x2]
 
 func get_lane_bounds(percentage):
@@ -664,8 +662,8 @@ func get_lane_bounds(percentage):
 		percentage_min = 0.0
 		percentage_max = 1.0
 	else:
-		percentage_min = percentage - (1/num_lanes) * 0.5
-		percentage_max = percentage + (1/num_lanes) * 0.5
+		percentage_min = percentage - (1/float(num_lanes)) * 0.5
+		percentage_max = percentage + (1/float(num_lanes)) * 0.5
 	var lane_bound_min = get_lane_bound(percentage_min)
 	var lane_bound_max = get_lane_bound(percentage_max)
 	return [lane_bound_min[0], lane_bound_min[1], lane_bound_max[0], lane_bound_max[1]]
@@ -674,38 +672,30 @@ func reset_lane_position_list():
 	lane_position_list.clear()
 
 	for lane in range(num_lanes + 1):
-		var angle = Utils.convert_range(lane, 0, num_lanes / 2, Global.MAX_ANGLE_DEGREES, 0)
-
-		var x1 = Global.HIGHWAY_XMIN + Global.HIGHWAY_XSIZE*(lane/num_lanes)
-		var y_max = Global.HIGHWAY_YMAX
-		var y_min = Global.HIGHWAY_YMIN
+		var angle = Utils.convert_range(lane, 0, float(num_lanes) * 0.5, Global.MAX_ANGLE_DEGREES, 0)
+		var x1 = x_min + x_size*(lane/float(num_lanes))
 		var x2 = Utils.rotate_line(x1, y_max, x1, y_min, angle)
-
 		lane_position_list.append([x1, x2])
-	
+
 	#get horizon
 	var x1_first = get_lane_position(0)[0]
-	var y2_first = Global.HIGHWAY_YMIN
+	var y2_first = y_min
 	var x2_first = get_lane_position(0)[1]
-	var y1_first = Global.HIGHWAY_YMAX
+	var y1_first = y_max
 	
 	var x1_last = get_lane_position(num_lanes)[0]
-	var y2_last = Global.HIGHWAY_YMIN
+	var y2_last = y_min
 	var x2_last = get_lane_position(num_lanes)[1]
-	var y1_last = Global.HIGHWAY_YMAX
+	var y1_last = y_max
 	
 	var result = Utils.get_intersection(x1_first, y1_first, x2_first, y2_first, x1_last, y1_last, x2_last, y2_last)
 
 	horizon_x = result.x
 	horizon_y = result.y
 
-func get_y_pos_from_time(time: float, is_highway_skin: bool) -> float:
+func get_y_pos_from_time(time: float) -> float:
 	var time_at_half_horizon = Global.TRACK_SPEED
-
-	if is_highway_skin:
-		time_at_half_horizon *= 0.44  #TODO: find correct math
-
 	var time_at_strikeline = visible_time_min
 	var future = time -  time_at_strikeline
 	var halves = future / time_at_half_horizon
-	return horizon_y + (Global.HIGHWAY_YSTRIKELINE - horizon_y) * pow(0.5, halves)
+	return horizon_y + (y_strikeline - horizon_y) * pow(0.5, halves)

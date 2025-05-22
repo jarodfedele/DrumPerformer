@@ -10,36 +10,16 @@ const HIGHWAY_XSIZE = 700
 const HIGHWAY_YSIZE = 600
 const HIGHWAY_XMAX = HIGHWAY_XMIN + HIGHWAY_XSIZE 
 const HIGHWAY_YMAX = HIGHWAY_YMIN + HIGHWAY_YSIZE
-const HIGHWAY_YFADESTART = HIGHWAY_YMIN + HIGHWAY_YSIZE*0.2
-const HIGHWAY_YSTRIKELINE = HIGHWAY_YMAX - HIGHWAY_YSIZE*0.2
 const HIGHWAY_HITWINDOW_MS = 100.0
 const STAFF_SPACE_HEIGHT = 10
 
-const NOTATION_XMIN = 100
-const NOTATION_YMIN = HIGHWAY_YMAX + 6
-const NOTATION_XSIZE = 1166
+const NOTATION_XSIZE = 1920
 const NOTATION_YSIZE = STAFF_SPACE_HEIGHT * 24
-const NOTATION_XMAX = NOTATION_XMIN + NOTATION_XSIZE
-const NOTATION_YMAX = NOTATION_YMIN + NOTATION_YSIZE
 
-const AUDIOBAR_XMIN = HIGHWAY_XMIN + HIGHWAY_XSIZE*0.7
-const AUDIOBAR_YMIN = HIGHWAY_YMIN + 20
-const AUDIOBAR_XSIZE = 740
-const AUDIOBAR_YSIZE = 60
-const AUDIOBAR_XMAX = AUDIOBAR_XMIN + AUDIOBAR_XSIZE 
-const AUDIOBAR_YMAX = AUDIOBAR_YMIN + AUDIOBAR_YSIZE
-
-const PLAYBUTTON_XMIN = AUDIOBAR_XMAX + 10
-const PLAYBUTTON_YMIN = AUDIOBAR_YMIN
-const PLAYBUTTON_XSIZE = AUDIOBAR_YSIZE
-const PLAYBUTTON_YSIZE = PLAYBUTTON_XSIZE
-const PLAYBUTTON_XMAX = PLAYBUTTON_XMIN + PLAYBUTTON_XSIZE
-const PLAYBUTTON_YMAX = PLAYBUTTON_YMIN + PLAYBUTTON_YSIZE
-
-const HUD_XMIN = (AUDIOBAR_XMIN + PLAYBUTTON_XMIN) * 0.5
-const HUD_YMIN = PLAYBUTTON_YMAX + 50
-const HUD_XMAX = PLAYBUTTON_XMAX
-const HUD_YMAX = NOTATION_YMIN - 30
+const HUD_XMIN = 700
+const HUD_YMIN = 100
+const HUD_XMAX = 100
+const HUD_YMAX = 700
 const HUD_XSIZE = HUD_XMAX - HUD_XMIN
 const HUD_YSIZE = HUD_YMAX- HUD_YMIN
 
@@ -69,7 +49,7 @@ const HUD_LABEL_XPOS = HUD_SLIDER_LENGTH + 10
 const NOTATION_DRAW_AREA_XOFFSET = 64
 const NOTATION_BOUNDARYXMINOFFSET = -12
 const MEASURE_START_SPACING = 12
-var center_staff_line
+var center_staff_line_index
 
 var gem_texture_list
 
@@ -96,6 +76,8 @@ const VALID_PAD_TYPES = ["kick", "snare", "racktom", "floortom", "hihat", "ride"
 const VALID_ZONE_KEYS = ["head", "rim", "sidestick", "bow", "edge", "bell", "splash", "stomp"]
 
 var calibration_seconds = 100.0 * 0.001
+
+var game : Game
 
 func _ready():
 	if not DirAccess.dir_exists_absolute(GEMS_PATH):
@@ -312,14 +294,14 @@ static func generate_lighting_frame_list(gem):
 		
 	var output = ""
 	
-	var original_gem_path = Global.ORIGINAL_GEMS_PATH + gem + "/"
-	var dir = DirAccess.open(original_gem_path)
+	var gem_path = Global.GEMS_PATH + gem + "/"
+	var dir = DirAccess.open(gem_path)
 	if dir:
 		dir.list_dir_begin()
 		var file_name = dir.get_next()
 		while file_name != "":
 			if "lighting" in file_name and file_name.ends_with(".png"):
-				output += original_gem_path + file_name + "\n"
+				output += gem_path + file_name + "\n"
 			file_name = dir.get_next()
 		dir.list_dir_end()
 
@@ -411,7 +393,7 @@ static func load_gem_texture(gem, png_name):
 		
 	return tex
 
-static func get_gem_config_setting(gem, header):
+static func get_gem_config_setting(gem, header, default_val):
 	var gem_data = Global.gem_texture_list[Global.get_gem_index_in_list(gem)]
 	var index
 	
@@ -436,7 +418,10 @@ static func get_gem_config_setting(gem, header):
 	if header == "color_a":
 		index = 14
 	
-	return gem_data[index]
+	var result = gem_data[index]
+	if result == null:
+		result = default_val
+	return result
 
 func debug_set_gem_property(gem, header, val):
 	if not Global.debug_update_notes:

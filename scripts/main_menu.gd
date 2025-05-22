@@ -18,19 +18,16 @@ func _ready():
 	load_song_button.pressed.connect(_on_load_song_editor_button_pressed)
 	#modify_art_button.pressed.connect(_on_modify_art_editor_button_pressed)
 	
-	SceneManager.connect("main_menu_scene_set", Callable(self, "_on_main_menu_scene_set"))
-	
 	refresh_button_visibilities()
 	
 func _on_drum_kit_editor_button_pressed():
-	SceneManager.set_scene("DrumKitEditor")
+	Global.game.set_scene("drum_kit_editor")
 func _on_profile_editor_button_pressed():
-	SceneManager.set_scene("ProfileEditor")
+	Global.game.set_scene("profile_editor")
 func _on_load_song_editor_button_pressed():
-	SceneManager.set_scene("Song")
-func _on_modify_art_editor_button_pressed():
-	SceneManager.set_scene("Song")
-
+	var scene = Global.game.set_scene("song")
+	scene.load_song("res://test_song/")
+	
 func refresh_button_visibilities():
 	load_song_button.visible = Global.drum_kit["Valid"]
 	

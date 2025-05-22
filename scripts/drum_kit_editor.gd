@@ -1,10 +1,10 @@
 extends Node2D
 
+var highway
+
 @onready var drum_kit_vbox_container = $ScrollContainer/PanelContainer/VBoxContainer/DrumKitPanelContainer/DrumKitVBoxContainer
 @onready var midi_device_vbox_container = $MIDIDevicePanelContainer/MIDIDeviceVBoxContainer
 @onready var tom_order_vbox_container = %TomOrderVBoxContainer
-
-@onready var highway = $Highway
 
 @onready var arrow_up_button = $LaneCountContainer/ArrowUpButton
 @onready var lane_count_label = $LaneCountContainer/LaneCountLabel
@@ -50,8 +50,6 @@ var original_mouse_position
 
 var snap_enabled = false
 
-var note_pad_indeces
-
 var refresh = false
 
 func _process(_delta):
@@ -60,7 +58,15 @@ func _process(_delta):
 
 func _ready():
 	MidiInputManager.midi_send.connect(_on_midi_received)
-	highway.set_playable(false)
+	
+	var num_lanes = int(Global.drum_kit["Lanes"])
+	var beatline_data = get_beatline_data()
+	var note_data = get_note_data()
+	highway = Highway.create(num_lanes, false, 
+		Global.HIGHWAY_XMIN, Global.HIGHWAY_YMIN, Global.HIGHWAY_XSIZE, Global.HIGHWAY_YSIZE, 
+		beatline_data, [], [], note_data)
+	add_child(highway)
+	refresh = true
 			
 func _on_midi_received(channel, type, pitch, velocity, controller_number, controller_value, pressure):
 	var channel_text
@@ -108,32 +114,26 @@ func update_contents():
 	
 	update_save_button()
 
-func draw_notes_on_highway():
-	var num_lanes = Global.drum_kit["Lanes"]
-	num_lanes = float(num_lanes)
-	lane_count_label.text = str(int(num_lanes))
-	arrow_up_button.visible = num_lanes < 10
-	arrow_down_button.visible = num_lanes > 4
-
+func get_row_times():
 	const NUM_ROWS = 4
 	var row_times = []
 	for row in range(NUM_ROWS):
 		var row_time = row*0.4 + 0.0
 		row_times.append(row_time)
-	
+	return row_times
+
+func get_beatline_data():
+	var row_times = get_row_times()
 	var beatline_data = []
-	var color_r = 120
-	var color_g = 120
-	var color_b = 120
-	var thickness = 4
-	for row in range (row_times.size()):
-		beatline_data.append([row_times[row], color_r, color_g, color_b, thickness])
-	highway.populate_beat_lines(beatline_data)
+	var type = 1
+	for row_time in row_times:
+		beatline_data.append([row_time, type])
+	return beatline_data
 	
+func get_note_data():
+	var row_times = get_row_times()
 	var note_data = []
 	const DEFAULT_VELOCITY = 100
-	
-	note_pad_indeces = []
 	
 	var pad_list = Global.drum_kit["Pads"]
 	for pad_index in range(pad_list.size()):
@@ -145,12 +145,24 @@ func draw_notes_on_highway():
 			pad_position = pad["Position"]
 			pad_layer = pad["Layer"]
 			note_data.append([row_times[pad_layer], pad_type, pad_position, pad_index, DEFAULT_VELOCITY, -1])
-			note_pad_indeces.append(pad_index)
-			
+	
+	return note_data
+		
+func draw_notes_on_highway():
+	var num_lanes = highway.num_lanes
+
+	lane_count_label.text = str(num_lanes)
+	arrow_up_button.visible = num_lanes < 10
+	arrow_down_button.visible = num_lanes > 4
+	
+	var row_times = get_row_times()
+	
 	highway.set_lane_lines_visibility(snap_enabled)
 	
-	highway.populate_notes(note_data)
-
+	highway.beatline_data = get_beatline_data()
+	highway.note_data = get_note_data()
+	highway.populate_beatlines()
+	highway.populate_notes()
 	highway.update_contents(0)
 	
 	await get_tree().process_frame
@@ -184,8 +196,8 @@ func draw_notes_on_highway():
 					var top_right = highway.get_lane_position(num_lanes)[1]
 					var top_left = highway.get_lane_position(0)[1]
 	
-					var xMin = Utils.get_x_at_y(bottom_left, Global.HIGHWAY_YMAX, top_left, Global.HIGHWAY_YMIN, mouse_y)
-					var xMax = Utils.get_x_at_y(bottom_right, Global.HIGHWAY_YMAX, top_right, Global.HIGHWAY_YMIN, mouse_y)
+					var xMin = Utils.get_x_at_y(bottom_left, highway.y_max, top_left, highway.y_min, mouse_y)
+					var xMax = Utils.get_x_at_y(bottom_right, highway.y_max, top_right, highway.y_min, mouse_y)
 					var pad_position = Utils.convert_range(mouse_x, xMin, xMax, 0.0, 1.0)
 					
 					if snap_enabled:
@@ -198,21 +210,19 @@ func draw_notes_on_highway():
 					
 					var snapped_layer_values = []
 					for row_time in row_times:
-						snapped_layer_values.append(highway.get_y_pos_from_time(row_time, false))
+						snapped_layer_values.append(highway.get_y_pos_from_time(row_time))
 					var pad_layer = Utils.get_closest_index(mouse_y, snapped_layer_values)
 					clicked_note.time = row_times[pad_layer]
 					
 					clicked_note.update_position()
 					set_collision_rect_position(rect, clicked_note)
 					
-					var pad = pad_list[note.pad_index]
+					var pad = Global.drum_kit["Pads"][note.pad_index]
 					pad["Position"] = pad_position
 					pad["Layer"] = pad_layer
 			)
 	
 	update_save_button()
-	
-	return note_pad_indeces
 
 func update_save_button():
 	var text = ""
@@ -689,7 +699,7 @@ func _on_midi_channel_button_clicked(sender):
 
 func get_default_position(lane):
 	var center_x = (highway.get_lane_position(lane)[0] + highway.get_lane_position(lane+1)[0]) * 0.5
-	return Utils.convert_range(center_x, Global.HIGHWAY_XMIN, Global.HIGHWAY_XMAX, 0.0, 1.0)
+	return Utils.convert_range(center_x, highway.x_min, highway.x_max, 0.0, 1.0)
 
 func create_default_zone(pad, zone_name):
 	var zone = {
@@ -789,18 +799,18 @@ func _on_snap_checkbox_pressed() -> void:
 	snap_enabled = !snap_enabled
 	highway.set_lane_lines_visibility(snap_enabled)
 
-func set_num_lanes(val):
+func set_num_lanes(val: int):
 	Global.drum_kit["Lanes"] = val
-	lane_count_label.text = str(int(val))
+	lane_count_label.text = str(val)
 	highway.num_lanes = val
-	highway.refresh_boundaries(false)
+	highway.refresh_boundaries()
 	draw_notes_on_highway()
 	
 func _on_arrow_up_button_pressed() -> void:
-	set_num_lanes(Global.drum_kit["Lanes"] + 1)
+	set_num_lanes(int(Global.drum_kit["Lanes"] + 1))
 
 func _on_arrow_down_button_pressed() -> void:
-	set_num_lanes(Global.drum_kit["Lanes"] - 1)
+	set_num_lanes(int(Global.drum_kit["Lanes"] - 1))
 
 func _on_save_button_pressed() -> void:
 	Global.drum_kit["Valid"] = true
@@ -809,4 +819,3 @@ func _on_save_button_pressed() -> void:
 func _on_back_button_pressed() -> void:
 	var drum_kit_confirmation_dialog = DrumKitConfirmationDialogScene.instantiate()
 	add_child(drum_kit_confirmation_dialog)
-	#SceneManager.set_scene("MainMenu")

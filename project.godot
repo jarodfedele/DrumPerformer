@@ -22,10 +22,16 @@ Directory="*res://scripts/directory.gd"
 NoteCompiler="*res://scripts/note_compiler.gd"
 Utils="*res://scripts/utils.gd"
 Global="*res://scripts/global.gd"
-SceneManager="*res://scripts/scene_manager.gd"
 MidiInputManager="*res://scripts/midi_input_manager.gd"
 
 [display]
 
-window/size/viewport_width=1600
-window/size/viewport_height=830
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/size/mode=3
+window/dpi/allow_hidpi=false
+
+[rendering]
+
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
+anti_aliasing/quality/msaa_3d=1

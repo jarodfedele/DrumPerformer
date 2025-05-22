@@ -5,10 +5,6 @@ extends TextureButton
 
 var dragging = false
 
-func _ready():
-	position = Vector2(Global.AUDIOBAR_XMIN, Global.AUDIOBAR_YMIN)
-	size = Vector2(Global.AUDIOBAR_XSIZE, Global.AUDIOBAR_YSIZE)
-
 func update_seek(click_pos):
 	var global_click_pos = get_global_mouse_position()  # Global screen coords
 	var button_pos = global_position        # Global position of the button

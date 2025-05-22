@@ -130,7 +130,7 @@ func run(highway):
 				var hihat_cc = int(Global.get_value_from_key(line, "cc"))
 				hihat_pedal_values.append([hihat_cc, []])
 				for i in range(1, values.size(), 3):
-					var time = values[i] + Global.calibration_seconds
+					var time = values[i]
 					var cc_val = values[i+1]
 					var gradient_int = int(values[i+2])
 					
@@ -145,7 +145,7 @@ func run(highway):
 	var hihatpedal_data = []
 	var hihat_cc_global_data = []
 	for x in range(time_list.size()):
-		var time = time_list[x] + Global.calibration_seconds
+		var time = time_list[x]
 		var gem = gem_list[x]
 		var position = position_list[x]
 		var color_r = color_r_list[x]
@@ -187,18 +187,12 @@ func run(highway):
 		note_data.append([time, gem, position, pad_index, velocity, pedal_val])
 		
 		if sustain_line is String:
-			var lane_bounds = highway.get_lane_bounds(position)
-			var lane_start_x1 = lane_bounds[0]
-			var lane_start_x2 = lane_bounds[1]
-			var lane_end_x1 = lane_bounds[2]
-			var lane_end_x2 = lane_bounds[3]
-			
 			var sustain_type = Global.get_value_from_key(sustain_line, "type")
-			var lane_data = [lane_start_x1, lane_start_x2, lane_end_x1, lane_end_x2, color_r, color_g, color_b, sustain_type, []]
+			var lane_data = [position, color_r, color_g, color_b, sustain_type, []]
 
 			var values = Utils.separate_string(sustain_line)
 			for i in range(3, values.size(), 3):
-				var sustain_time = values[i] + Global.calibration_seconds
+				var sustain_time = values[i]
 				var cc_val = values[i+1]
 				var gradient_int = values[i+2]
 				
@@ -206,7 +200,7 @@ func run(highway):
 				var is_gradient = (gradient_int == 1)
 				
 				var point_data = [sustain_time, percentage, is_gradient]
-				lane_data[8].append(point_data)
+				lane_data[5].append(point_data)
 			
 			sustain_data.append(lane_data)
 	
@@ -225,12 +219,7 @@ func run(highway):
 				var color_r = data[1]
 				var color_g = data[2]
 				var color_b = data[3]
-				var lane_bounds = highway.get_lane_bounds(position)
-				var lane_start_x1 = lane_bounds[0]
-				var lane_start_x2 = lane_bounds[1]
-				var lane_end_x1 = lane_bounds[2]
-				var lane_end_x2 = lane_bounds[3]
-				hihatpedal_data.append([lane_start_x1, lane_start_x2, lane_end_x1, lane_end_x2, color_r, color_g, color_b, values])
+				hihatpedal_data.append([position, color_r, color_g, color_b, values])
 				break
 	
 	return [note_data, sustain_data, hihatpedal_data]
