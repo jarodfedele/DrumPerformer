@@ -547,6 +547,7 @@ function runCompiler(gamedataFileText, drumkitFileText, gemNameTable, configText
     local velocity = getValueFromKey(noteLine, "velocity")
     local padIndex = getValueFromKey(noteLine, "pad")
 	local voiceIndex = getValueFromKey(noteLine, "voice")
+	local midiID = getValueFromKey(noteLine, "id")
     local sustainID = getValueFromKey(noteLine, "sustain")
 	
     local stateLine = stateList[midiNoteNum+1][channel+1]
@@ -595,6 +596,8 @@ function runCompiler(gamedataFileText, drumkitFileText, gemNameTable, configText
 	  
 	  insertInMasterList(notePedal, -1)
 	  
+	  insertInMasterList(midiID)
+	  
     else
       tableInsert(missingPadTable, noteType .. " (" .. noteState .. ") [" .. noteLine .. "]")
       end
@@ -611,8 +614,6 @@ function runCompiler(gamedataFileText, drumkitFileText, gemNameTable, configText
   local file = io.open(outputTextFilePath, "w+")
   file:write(numLanes .. "\n" .. table.concat(masterList, "\n"))
   file:close()
-  
-  return {numLanes, timeList, velocityList, positionList, gemList, colorRList, colorGList, colorBList, colorAList, shiftXList, shiftYList, scaleList, zIndexList, padIndexList, sustainLineList, pedalList}
   end
 
 _G.runCompiler = runCompiler

@@ -12,6 +12,8 @@ const BackButtonScene = preload("res://scenes/back_button.tscn")
 @onready var song_audio_player = get_node("/root/Game/AudioManager/SongAudioPlayer")
 @onready var timecode = get_node("/root/Game/Song/AudioBar/Timecode")
 
+var color_replace_shader = preload("res://shaders/color_replace.gdshader")
+
 var highway
 var staff
 var audio_bar
@@ -77,8 +79,6 @@ func load_song(song_path):
 	#canvas_layer.layer = -1
 	#add_child(canvas_layer)
 	
-
-	
 	#var highway_3d = Highway3DScene.instantiate()
 	#add_child(highway_3d)
 		
@@ -120,13 +120,38 @@ func load_song(song_path):
 		set_audio_players_to_song()
 	
 	staff.populate_notations()
-	staff.take_screenshots()
+	#staff.take_screenshots()
+	
+	link_notes_between_highway_and_staff()
 	
 	var back_button = BackButtonScene.instantiate()
 	add_child(back_button)
 	
 	loaded = true
+
+func link_notes_between_highway_and_staff():
+	var notes = highway.get_notes()
+	notes.sort_custom(func(a, b):
+		return a.midi_id < b.midi_id
+	)
 	
+	var midi_ids = []
+	for note in notes:
+		midi_ids.append(note.midi_id)
+		
+	for notation in staff.noteheads:
+		var index = Utils.binary_search_exact(midi_ids, notation.midi_id, -1)
+		var note = notes[index]
+		note.linked_notations.append(notation)
+		notation.color_r = note.color_r
+		notation.color_g = note.color_g
+		notation.color_b = note.color_b
+		var notation_sprite = notation.get_children()[0]
+		var shader_material = ShaderMaterial.new()
+		shader_material.shader = color_replace_shader
+		notation_sprite.material = shader_material
+		notation_sprite.material.set_shader_parameter("tint_color", Color(notation.color_r, notation.color_g, notation.color_b))
+			
 func process_general_data(values):
 	var header = values[0]
 	var val = values[1]

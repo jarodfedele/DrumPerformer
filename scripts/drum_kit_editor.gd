@@ -144,7 +144,8 @@ func get_note_data():
 		if pad.has("Position") and pad.has("Layer"):
 			pad_position = pad["Position"]
 			pad_layer = pad["Layer"]
-			note_data.append([row_times[pad_layer], pad_type, pad_position, pad_index, DEFAULT_VELOCITY, -1])
+			var midi_id = pad_index
+			note_data.append([row_times[pad_layer], pad_type, pad_position, pad_index, DEFAULT_VELOCITY, -1, midi_id])
 	
 	return note_data
 		

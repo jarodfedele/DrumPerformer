@@ -49,7 +49,7 @@ func run(highway):
 	run_compiler.invoke(Global.current_gamedata, drumkit_data, gem_name_table, config_text_table, globalized_file_path)
 
 	const NUM_CONSTANTS = 1
-	const NUM_ARRAYS = 15
+	const NUM_ARRAYS = 16
 	var num_lanes
 	
 	var time_list = []
@@ -67,6 +67,7 @@ func run(highway):
 	var pad_index_list = []
 	var sustain_line_list = []
 	var pedal_list = []
+	var midi_id_list = []
 	
 	var file = FileAccess.open(Directory.OUTPUT_TEXT_FILE_PATH, FileAccess.READ)
 	if file:
@@ -77,6 +78,7 @@ func run(highway):
 				line = float(line)
 			if line_id == 0:
 				num_lanes = int(line)
+			#ATTENTION: if adding new constant, update NUM_CONSTANTS!
 			else:
 				var array_id = (line_id - NUM_CONSTANTS) % NUM_ARRAYS
 				var arr
@@ -111,7 +113,10 @@ func run(highway):
 					arr = sustain_line_list
 				if array_id == 14:
 					arr = pedal_list
-
+				if array_id == 15:
+					arr = midi_id_list
+				#ATTENTION: if adding new array, update NUM_ARRAYS!
+				
 				arr.append(line)
 			line_id += 1
 		file.close()
@@ -144,6 +149,7 @@ func run(highway):
 	var sustain_data = []
 	var hihatpedal_data = []
 	var hihat_cc_global_data = []
+	
 	for x in range(time_list.size()):
 		var time = time_list[x]
 		var gem = gem_list[x]
@@ -155,6 +161,7 @@ func run(highway):
 		var velocity = velocity_list[x]
 		var sustain_line = sustain_line_list[x]
 		var pedal_cc = pedal_list[x]
+		var midi_id = midi_id_list[x]
 		
 		var pedal_val = -1
 		if pedal_cc != -1 and !gem.ends_with("_pedal"):
@@ -184,7 +191,7 @@ func run(highway):
 						pedal_val = pedal_val_start
 					pedal_val = int(clamp(pedal_val, 0.0, 127.0))
 						
-		note_data.append([time, gem, position, pad_index, velocity, pedal_val])
+		note_data.append([time, gem, position, pad_index, velocity, pedal_val, midi_id])
 		
 		if sustain_line is String:
 			var sustain_type = Global.get_value_from_key(sustain_line, "type")

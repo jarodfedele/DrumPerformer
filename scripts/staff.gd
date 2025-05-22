@@ -8,6 +8,8 @@ var y_size: int
 var x_max: int
 var y_max: int
 
+var noteheads: Array
+
 var center_staff_line_yPos
 
 @onready var song = get_parent()
@@ -136,43 +138,38 @@ func insert_notation_in_page(notation, page_number):
 	notation.xMax = notation.xMax - xOffset
 	
 	notation.xMin -= x_min
-	notation.yMin -= y_min
+	#notation.yMin -= y_min
 	notation.xMax -= x_min
-	notation.yMax -= y_min
+	#notation.yMax -= y_min
 	
-	var sprite = notation.get_node("NotationSprite")
-	var line = notation.get_node("NotationLine")
-	var color_rect = notation.get_node("NotationColorRect")
-	var measure_number = notation.get_node("NotationMeasureNumber")
-	
+	var node = notation.get_children()[0]
 	var category = notation.category
-	
 	if category == "sprite" or category == "notehead":
 		var file_path = Global.NOTATIONS_PATH + notation.file_name + ".png"
-		sprite.texture = load(file_path)
+		node.texture = load(file_path)
 
 		var desired_width = notation.xMax - notation.xMin
 		var desired_height = notation.yMax - notation.yMin
 
-		var tex_width = sprite.texture.get_width()
-		var tex_height = sprite.texture.get_height()
+		var tex_width = node.texture.get_width()
+		var tex_height = node.texture.get_height()
 		
 		var sprite_xCenter = (notation.xMin + notation.xMax)/2
 		var sprite_yCenter = (notation.yMin + notation.yMax)/2
 		
-		sprite.position = Vector2(sprite_xCenter, sprite_yCenter)
-		sprite.scale = Vector2(desired_width / tex_width, desired_height / tex_height)
+		node.position = Vector2(sprite_xCenter, sprite_yCenter)
+		node.scale = Vector2(desired_width / tex_width, desired_height / tex_height)
 	elif category == "line":
 		#TODO: check which values are smaller and bigger
-		line.add_point(Vector2(notation.xMin, notation.yMin))
-		line.add_point(Vector2(notation.xMax, notation.yMax))
+		node.add_point(Vector2(notation.xMin, notation.yMin))
+		node.add_point(Vector2(notation.xMax, notation.yMax))
 	elif category == "rect":
-		color_rect.color = Color(0, 0, 0)
-		color_rect.position = Vector2(notation.xMin, notation.yMin)
-		color_rect.size = Vector2(notation.xMax - notation.xMin, notation.yMax - notation.yMin)
+		node.color = Color(0, 0, 0)
+		node.position = Vector2(notation.xMin, notation.yMin)
+		node.size = Vector2(notation.xMax - notation.xMin, notation.yMax - notation.yMin)
 	elif category == "measure_number":
-		measure_number.visible = true
-		measure_number.position = Vector2(notation.xMin, notation.yMin)
+		node.visible = true
+		node.position = Vector2(notation.xMin, notation.yMin)
 	else:
 		assert(false, "Expected notation category node not found! " + category)
 		
@@ -181,7 +178,9 @@ func insert_notation_in_page(notation, page_number):
 func populate_notations():
 	for child in notation_pages.get_children():
 		child.queue_free()
-
+	
+	noteheads = []
+	
 	var measure_line_x_list = []
 	var notation_nodes = []
 	var notation_nodes_copy = []
@@ -199,27 +198,42 @@ func populate_notations():
 			notation.yMax = data[6] + y_min
 			var misc = data[7]
 			
-			var sprite = notation.get_node("NotationSprite")
-			var line = notation.get_node("NotationLine")
-			var color_rect = notation.get_node("NotationColorRect")
-			var measure_number = notation.get_node("NotationMeasureNumber")
+			var node
 			
 			if category == "sprite" or category == "notehead":
-				sprite.visible = true
+				node = Sprite2D.new()
 				notation.file_name = data[2]
-				if misc == "measureline":
+				if category == "sprite" and misc == "measureline":
 					measure_line_x_list.append([notation.xMin, notation.xMax])
+				if category == "notehead":
+					notation.midi_id = misc
+					node.z_index = 1
+					#TODO: all these assignments are running twice!
+					#if i == 0:
+					noteheads.append(notation)
 			elif category == "line":
-				line.visible = true
+				node = Line2D.new()
+				node.default_color = Color(0, 0, 0)
+				node.width = 2
 			elif category == "rect":
-				color_rect.visible = true
+				node = ColorRect.new()
 			elif category == "measure_number":
-				measure_number.visible = true
+				node = Label.new()
 				var number_text = str(data[2])
-				measure_number.text = number_text
-				measure_number.z_index = 1
+				node.text = number_text
+				node.z_index = 1
+				
+				var label_settings = LabelSettings.new()
+				var font = SystemFont.new()
+				font.font_names = ["Verdana"]
+				label_settings.font = font
+				label_settings.font_size = 14
+				label_settings.font_color = Color(0, 0, 0)
+				node.set_label_settings(label_settings)
 			else:
 				assert(false, "Expected notation category node not found! " + category)
+			
+			notation.add_child(node)
 			
 			if i == 0:
 				notation_nodes.append(notation)
@@ -227,7 +241,7 @@ func populate_notations():
 				notation_nodes_copy.append(notation)
 				
 	generate_notation_page_and_time_lists(notation_nodes, notation_nodes_copy, measure_line_x_list)
-	
+
 func get_current_notation_xOffset():
 	var page_number = get_current_page_number(true)
 	return float(notation_page_list[page_number][0] - x_min)

@@ -11,6 +11,7 @@ var color_r : float
 var color_g : float
 var color_b : float
 var color_a : float
+var midi_id : int
 var note_index : int
 var pad_index : int
 var positioning_shift_x : float
@@ -22,6 +23,7 @@ var highway
 
 var gem_path : String
 var grayscale : bool = false
+var linked_notations : Array
 
 var hit_state
 
@@ -42,7 +44,7 @@ const NOTE_SCENE: PackedScene = preload("res://scenes/note.tscn")
 
 static func create(time: float, gem: String, normalized_position: float, velocity: int, pedal_val: int,
 	color_r: float, color_g: float, color_b: float, color_a: float,
-	note_index: int, pad_index: int,
+	midi_id: int, note_index: int, pad_index: int,
 	positioning_shift_x: float, positioning_shift_y: float, positioning_scale: float, blend_tint: int, blend_lighting: int,
 	z_order,
 	highway):
@@ -60,6 +62,7 @@ static func create(time: float, gem: String, normalized_position: float, velocit
 	instance.color_b = color_b
 	instance.color_a = color_a
 	
+	instance.midi_id = midi_id
 	instance.note_index = note_index
 	instance.pad_index = pad_index
 	
@@ -74,6 +77,7 @@ static func create(time: float, gem: String, normalized_position: float, velocit
 	instance.highway = highway
 	
 	instance.gem_path = Global.GEMS_PATH + instance.gem + "/"
+	instance.linked_notations = []
 	
 	return instance
 
@@ -164,15 +168,14 @@ func hit():
 	hit_state = true
 	highway.last_hit_note = self
 	
-	var tween = get_tree().create_tween()
-
-	var sprite
-	if Global.setting_tint_colored:
-		sprite = tint_colored
-	else:
-		sprite = tint
-	tween.tween_property(self, "scale", Vector2(0.0, 0.0), 0.1)
-	tween.tween_callback(Callable(self, "_on_tween_complete"))
+	var note_tween = get_tree().create_tween()
+	note_tween.tween_property(self, "scale", Vector2(0.0, 0.0), 0.1)
+	note_tween.tween_callback(Callable(self, "_on_tween_complete"))
+	
+	for notation in linked_notations:
+		var notation_tween = get_tree().create_tween()
+		var notation_sprite = notation.get_children()[0]
+		notation_tween.tween_property(notation_sprite, "scale", Vector2(0.0, 0.0), 0.1)
 	
 	highway.hit_count += 1
 	highway.hit_count_label.text = "Hits: " + str(highway.hit_count)

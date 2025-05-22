@@ -134,6 +134,30 @@ static func binary_search_closest_or_less(sorted_table: Array, target: float, su
 
 	return result
 
+static func binary_search_exact(sorted_table: Array, target: float, sub_table_index) -> int:
+	var low := 0
+	var high := sorted_table.size() - 1
+	var result := -1
+
+	while low <= high:
+		var mid := (low + high) / 2
+		var mid_value
+
+		if sub_table_index != -1:
+			mid_value = sorted_table[mid][sub_table_index]
+		else:
+			mid_value = sorted_table[mid]
+		
+		if mid_value == target:
+			return mid
+		elif mid_value < target:
+			result = mid
+			low = mid + 1
+		else:
+			high = mid - 1
+
+	return -1
+
 static func load_json_file(path):
 	var file = FileAccess.open(path, FileAccess.READ)
 	if file == null:

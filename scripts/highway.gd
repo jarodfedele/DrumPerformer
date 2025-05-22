@@ -489,7 +489,7 @@ func try_to_hit_note(pad_index, zone_name, pitch):
 			
 	overhit()
 			
-func add_note_to_highway(time, gem, normalized_position, pad_index, velocity, pedal_val, note_index):
+func add_note_to_highway(time, gem, normalized_position, pad_index, velocity, pedal_val, midi_id, note_index):
 	var positioning_shift_x = Global.get_gem_config_setting(gem, "shiftx", 0)
 	var positioning_shift_y = Global.get_gem_config_setting(gem, "shifty", 0)
 	var positioning_scale = Global.get_gem_config_setting(gem, "scale", 1)
@@ -503,7 +503,7 @@ func add_note_to_highway(time, gem, normalized_position, pad_index, velocity, pe
 	
 	var note = Note.create(time, gem, normalized_position, velocity, pedal_val,
 	color_r, color_g, color_b, color_a,
-	note_index, pad_index,
+	midi_id, note_index, pad_index,
 	positioning_shift_x, positioning_shift_y, positioning_scale, blend_tint, blend_lighting, z_order,
 	self)
 	
@@ -525,9 +525,10 @@ func populate_notes():
 		var pad_index = data[3]
 		var velocity = data[4]
 		var pedal_val = data[5]
+		var midi_id = data[6]
 		
 		var note_index = note_data.size() - 1 - i
-		add_note_to_highway(time, gem, normalized_position, pad_index, velocity, pedal_val, note_index)
+		add_note_to_highway(time, gem, normalized_position, pad_index, velocity, pedal_val, midi_id, note_index)
 		
 #for cover
 func generate_uvs(points: PackedVector2Array) -> PackedVector2Array:
