@@ -4,6 +4,7 @@ var min_gap_ratio_both_voices: Array
 var time_xPos_points: Array
 var size_x: float
 var has_time_sig: bool = false
+var time_sig_notation
 
 func set_notation_positions():
 	for notation in get_children():

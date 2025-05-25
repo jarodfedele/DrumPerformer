@@ -444,7 +444,8 @@ func populate_notations():
 				time_sig_notation.queue_free()
 			
 			notation_measure.add_child(notation)
-										
+			notation_measure.time_sig_notation = notation
+			
 		prev_notation_measure = notation_measure
 	
 	for i in range(notation_measure_list.size()):
