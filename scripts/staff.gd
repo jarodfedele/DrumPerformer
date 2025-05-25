@@ -1,45 +1,52 @@
 class_name Staff extends Node2D
 
 var is_playable: bool
+var is_panorama: bool
 var x_min: int
 var y_min: int
 var x_size: int
 var y_size: int
 var x_max: int
 var y_max: int
+var staffline_xOffset: float
+
+var notation_measure_list: Array
+
+var time_xPos_points: Array
+var notation_lines: Array
 
 var noteheads: Array
 
-var center_staff_line_yPos
+var stem_yPos_both_voices
+
 
 @onready var song = get_parent()
 
 @onready var background = $Background
-@onready var notation_pages = $NotationPages
-@onready var cover = $Cover
-@onready var clef = $Clef
-@onready var staff_lines = $StaffLines
+@onready var staff_body = $StaffBody
 @onready var seek_line = $SeekLine
+@onready var notation_display = $NotationDisplay
 
-var notation_page_list
+var notation_line_list
 var notation_time_list
 
-var prev_page_number
+var prev_line_number
 
 const XPOS_INDEX = 0
 const NOTE_LIST_INDEX = 2
 const PAGE_INDEX = 3
 
 const STAFF_SCENE: PackedScene = preload("res://scenes/staff.tscn")
+const NOTATION_MEASURE_SCENE = preload("res://scenes/notation_measure.tscn")
 const NOTATION_SCENE = preload("res://scenes/notation.tscn")
-const NOTATION_PAGE_SCENE = preload("res://scenes/notation_page.tscn")
 
-static func create(is_playable: bool, type: int,
+static func create(is_playable: bool, is_panorama,
 	x_min: int, y_min: int, x_size: int, y_size: int):
 		
 	var instance: Staff = STAFF_SCENE.instantiate()
 	
 	instance.is_playable = is_playable
+	instance.is_panorama = is_panorama
 	
 	instance.x_min = x_min
 	instance.y_min = y_min
@@ -47,289 +54,448 @@ static func create(is_playable: bool, type: int,
 	instance.y_size = y_size
 	instance.x_max = instance.x_min + instance.x_size
 	instance.y_max = instance.y_min + instance.y_size
+	
+	if instance.is_panorama:
+		instance.staffline_xOffset = 0
+	else:
+		instance.staffline_xOffset = 30
 
 	return instance
 
 func _ready():
-	center_staff_line_yPos = Global.center_staff_line_index*Global.STAFF_SPACE_HEIGHT + y_min
-	
+	var center_staff_line_yPos = Global.center_staff_line_index*Global.STAFF_SPACE_HEIGHT + 0
+	stem_yPos_both_voices = [center_staff_line_yPos-Global.STAFF_SPACE_HEIGHT*7, center_staff_line_yPos+Global.STAFF_SPACE_HEIGHT*5]
+
 	draw_background()
-	draw_cover()
-	draw_clef()
-	draw_staff_lines()
 	
-func generate_notation_page_and_time_lists(notation_nodes, notation_nodes_copy, measure_line_x_list):
-	notation_page_list = []
-	var measure_offset = Global.MEASURE_START_SPACING - Global.NOTATION_DRAW_AREA_XOFFSET
-	var current_xOffset = 0
-	for i in range(measure_line_x_list.size()):
-		var current_measure_line_xMin = measure_line_x_list[i][0]
-		if current_measure_line_xMin >= x_max+current_xOffset-Global.NOTATION_DRAW_AREA_XOFFSET: #-100
-			notation_page_list.append([current_xOffset - measure_offset, null])
-			var prev_measure_line_xMax = measure_line_x_list[i-1][1]
-			current_xOffset = prev_measure_line_xMax + measure_offset
+	populate_notations()
 	
-	notation_time_list = []
-	for notation in notation_nodes:
-		var time = notation.time
-		if time:
-			var index = Utils.binary_search_closest_or_less(notation_page_list, notation.xMin, 0)
-			var page_time = notation_page_list[index][1]
-			if not page_time or time < page_time:
-				notation_page_list[index][1] = time
-			notation_time_list.append([time, (notation.xMin+notation.xMax)/2])
-	
-	for i in range(notation_page_list.size()):
-		notation_page_list[i][0] -= Global.NOTATION_DRAW_AREA_XOFFSET
-		
-	for i in range(notation_page_list.size()):
-		if notation_page_list[i][1] == null:
-			var prev_time = notation_page_list[i-1][1]
-			var next_time
-			var j = i + 1
-			while j < notation_page_list.size():
-				next_time = notation_page_list[j][1]
-				if next_time != null:
-					break
-				j += 1
-			var num_null_slots = j - i
-			for k in range(num_null_slots):
-				notation_page_list[i+k][1] = prev_time + (k + 1) * (next_time - prev_time) / float(num_null_slots + 1)
-		
-	notation_time_list.sort_custom(func(a, b):
-		return a[0] < b[0]
-	)
-	var index = 0
-	while index < notation_time_list.size()-1:
-		var current_time_point = notation_time_list[index]
-		var next_time_point = notation_time_list[index+1]
-		if current_time_point[0] == next_time_point[0]:
-			if current_time_point[1] > next_time_point[1]:
-				notation_time_list.remove_at(index)
-			else:
-				notation_time_list.remove_at(index+1)
-		else:	
-			index += 1
-	
-	for i in range(notation_page_list.size()):
-		notation_page_list[i].append([])
-		var notation_page = NOTATION_PAGE_SCENE.instantiate()
-		notation_page_list[i].append(notation_page)
-		notation_page.visible = false
-		notation_pages.add_child(notation_page)
-		
-	for i in range(notation_nodes.size()):
-		var notation = notation_nodes[i]
-		var notation_copy = notation_nodes_copy[i]
-		
-		var page_number = Utils.binary_search_closest_or_less(notation_page_list, notation.xMin, XPOS_INDEX)
-	 	
-		insert_notation_in_page(notation, page_number)
-		insert_notation_in_page(notation_copy, page_number-1)
+	store_notation_lines()
 
-func insert_notation_in_page(notation, page_number):
-	if page_number < 0 or page_number >= notation_page_list.size():
-		return
+func get_justify_x_offset(xPos, boundary_x_min, current_x_boundary_max, final_x_boundary_max):
+	return Utils.convert_range(xPos, boundary_x_min, current_x_boundary_max, boundary_x_min, final_x_boundary_max) - xPos
 	
-	var notation_page = notation_page_list[page_number][PAGE_INDEX]
+func get_consecutive_measure_x_offsets(starting_measure_index) -> Array:
+	var x_offsets = []
+	var ended_last_measure = true
+	
+	var initial_x_offset = staffline_xOffset
+	var x_offset = initial_x_offset
+	var staffline_x_max = x_max-staffline_xOffset
+	
+	var measure_index = starting_measure_index
+	
+	var attempting_to_squeeze_additional_measure = false
+	var smallest_min_gap = 10000
+	
+	var boundary_x_min
+	var final_x_boundary_max = staffline_x_max
+	var prev_x_boundary_max
+	while measure_index < notation_measure_list.size():
+		var notation_measure = notation_measure_list[measure_index]
+		smallest_min_gap = min(smallest_min_gap, notation_measure.min_gap_ratio_both_voices[0], notation_measure.min_gap_ratio_both_voices[1])
+		
+		var x_padding
+		if measure_index == starting_measure_index:
+			x_padding = Global.STAFF_SPACE_HEIGHT * 6 + x_min #TODO: clef offset
+		elif notation_measure.has_time_sig :
+			x_padding = Global.STAFF_SPACE_HEIGHT * 1
+		else:
+			x_padding = Global.STAFF_SPACE_HEIGHT * 1.8
+		x_offset += x_padding
+		x_offsets.append(x_offset)
+		if measure_index == starting_measure_index:
+			boundary_x_min = x_offset
+		x_offset += notation_measure.size_x
+		var current_x_boundary_max = x_offset
 			
-	var xOffset = notation_page_list[page_number][XPOS_INDEX] - x_min
-	notation.xMin = notation.xMin - xOffset
-	notation.xMax = notation.xMax - xOffset
-	
-	notation.xMin -= x_min
-	#notation.yMin -= y_min
-	notation.xMax -= x_min
-	#notation.yMax -= y_min
-	
-	var node = notation.get_children()[0]
-	var category = notation.category
-	if category == "sprite" or category == "notehead":
-		var file_path = Global.NOTATIONS_PATH + notation.file_name + ".png"
-		node.texture = load(file_path)
-
-		var desired_width = notation.xMax - notation.xMin
-		var desired_height = notation.yMax - notation.yMin
-
-		var tex_width = node.texture.get_width()
-		var tex_height = node.texture.get_height()
+		if x_offset > staffline_x_max:
+			if !is_panorama:
+				var line_x_size = current_x_boundary_max - boundary_x_min
+				var desired_x_size = final_x_boundary_max - boundary_x_min
+				var ratio = smallest_min_gap * (desired_x_size/float(line_x_size))
+				if ratio < 0.8 and measure_index > starting_measure_index:
+					x_offsets.pop_back()
+					current_x_boundary_max = prev_x_boundary_max
+				print(str(x_offsets.size()) + " " + str(ratio))
+				
+				#justify
+				for i in range(x_offsets.size()):	
+					var justified_measure_index = starting_measure_index + i
+					var justified_notation_measure = notation_measure_list[justified_measure_index]
+					for notation in justified_notation_measure.get_children():
+						var xMin = notation.xMin + x_offsets[i]
+						var xMax = notation.xMax + x_offsets[i]
+						var justify_xMin_offset = get_justify_x_offset(xMin, boundary_x_min, current_x_boundary_max, final_x_boundary_max)
+						var justify_xMax_offset = get_justify_x_offset(xMax, boundary_x_min, current_x_boundary_max, final_x_boundary_max)
+						
+						if notation.category == "multirest_rect":
+							notation.xMin += justify_xMin_offset
+							notation.xMax += justify_xMax_offset
+						else:
+							notation.xMin += justify_xMax_offset
+							notation.xMax += justify_xMax_offset
+						
+						var notation_child_node = notation.get_child_node()
+						if notation.category == "stem":
+							for beam in notation_child_node.get_children():
+								var beam_xMin = beam.position.x + x_offsets[i]
+								var beam_xMax = beam_xMin + beam.size.x
+								var justify_beam_xMin_offset = get_justify_x_offset(beam_xMin, boundary_x_min, current_x_boundary_max, final_x_boundary_max)
+								var justify_beam_xMax_offset = get_justify_x_offset(beam_xMax, boundary_x_min, current_x_boundary_max, final_x_boundary_max)
+								beam_xMin += justify_beam_xMin_offset - x_offsets[i]
+								beam_xMax += justify_beam_xMax_offset - x_offsets[i]
+								beam.position.x = beam_xMin
+								beam.size.x = beam_xMax - beam_xMin
+								
+								if starting_measure_index == 0:
+									print("JUSTIFY: " + str(beam_xMin) + " " + str(beam_xMax) + " " + str(boundary_x_min) + " " + str(current_x_boundary_max) + " " + str(final_x_boundary_max) + " " + str(justify_beam_xMin_offset) + " " + str(justify_beam_xMax_offset))
+							
+			ended_last_measure = false
+			break
 		
-		var sprite_xCenter = (notation.xMin + notation.xMax)/2
-		var sprite_yCenter = (notation.yMin + notation.yMax)/2
+		prev_x_boundary_max = current_x_boundary_max
+		measure_index += 1
+	
+	return [x_offsets, ended_last_measure]
+
+func store_notation_lines():
+	notation_lines = []
+	
+	var starting_measure_index = 0
+	while true:
+		var starting_measure_time = notation_measure_list[starting_measure_index].time_xPos_points[0][0]
+		var consecutive_measure_x_offsets = get_consecutive_measure_x_offsets(starting_measure_index)
+		var x_offsets = consecutive_measure_x_offsets[0]
+		var ended_last_measure = consecutive_measure_x_offsets[1]
+		var num_drawn_measures = x_offsets.size()
+		notation_lines.append([starting_measure_time, starting_measure_index, x_offsets, ended_last_measure])
+
+		if ended_last_measure:
+			break
 		
-		node.position = Vector2(sprite_xCenter, sprite_yCenter)
-		node.scale = Vector2(desired_width / tex_width, desired_height / tex_height)
-	elif category == "line":
-		#TODO: check which values are smaller and bigger
-		node.add_point(Vector2(notation.xMin, notation.yMin))
-		node.add_point(Vector2(notation.xMax, notation.yMax))
-	elif category == "rect":
-		node.color = Color(0, 0, 0)
-		node.position = Vector2(notation.xMin, notation.yMin)
-		node.size = Vector2(notation.xMax - notation.xMin, notation.yMax - notation.yMin)
-	elif category == "measure_number":
-		node.visible = true
-		node.position = Vector2(notation.xMin, notation.yMin)
+		starting_measure_index += num_drawn_measures
+	
+	for notation_measure in notation_measure_list:
+		notation_measure.set_notation_positions()
+		
+func draw_staff_line_body(staffline_x_min, staffline_x_max, center_staff_line_yPos, clef_filename):
+	#staff lines
+	for i in range(5):
+		var yPos = center_staff_line_yPos + (i-2)*Global.STAFF_SPACE_HEIGHT
+		var line = Line2D.new()
+		line.default_color = Color(0, 0, 0)
+		line.width = 2
+		line.add_point(Vector2(staffline_x_min, yPos))
+		line.add_point(Vector2(staffline_x_max, yPos))
+
+		staff_body.add_child(line)
+	
+	#clef
+	var clef_xMin = Global.STAFF_SPACE_HEIGHT * 2 + staffline_x_min
+	var clef_yMin = center_staff_line_yPos - Global.STAFF_SPACE_HEIGHT
+	var clef_yMax = center_staff_line_yPos + Global.STAFF_SPACE_HEIGHT
+
+	var file_path = Global.NOTATIONS_PATH + clef_filename + ".png"
+	var clef_node = Sprite2D.new()
+	clef_node.texture = load(file_path)
+	var tex_size_x = float(clef_node.texture.get_width())
+	var tex_size_y = float(clef_node.texture.get_height())
+	var aspect_ratio = tex_size_x/tex_size_y
+	
+	var clef_ySize = clef_yMax - clef_yMin
+	var scaling_factor = clef_ySize/tex_size_y
+	var clef_xSize = tex_size_x*scaling_factor
+	var clef_xMax = clef_xMin + clef_xSize
+	
+	clef_node.centered = false
+	clef_node.position = Vector2(clef_xMin, clef_yMin)
+	clef_node.scale = Vector2(clef_xSize / tex_size_x, clef_ySize / tex_size_y)
+
+	staff_body.add_child(clef_node)
+		
+func display_measures_from_index(starting_notation_line_number, staffline_id):
+	var notation_line_number = starting_notation_line_number + staffline_id
+	if notation_line_number >= notation_lines.size():
+		return
+		
+	var starting_measure_index = notation_lines[notation_line_number][1]
+	var x_offsets = notation_lines[notation_line_number][2]
+	var ended_last_measure = notation_lines[notation_line_number][3]
+	
+	var line_yMin = y_min + staffline_id*Global.NOTATION_YSIZE #TODO: NUMSTAFFLINES
+	var center_staff_line_yPos = Global.center_staff_line_index*Global.STAFF_SPACE_HEIGHT + line_yMin
+		
+	var measure_index = starting_measure_index
+	for x_offset in x_offsets:
+		var notation_measure = notation_measure_list[measure_index]
+		notation_display.add_child(notation_measure)
+		notation_measure.position.x = x_offset
+		notation_measure.position.y = line_yMin
+
+		for point in notation_measure.time_xPos_points:
+			var time = point[0]
+			var xPos = point[1] + x_offset 
+			time_xPos_points.append([time, xPos])
+			
+		measure_index += 1
+	
+	#staff lines
+	var staffline_x_min = x_min + staffline_xOffset
+	var staffline_x_max
+	if ended_last_measure:
+		var last_notation_measure = notation_measure_list[notation_measure_list.size()-1]
+		staffline_x_max = last_notation_measure.position.x + last_notation_measure.size_x
 	else:
-		assert(false, "Expected notation category node not found! " + category)
+		staffline_x_max = x_max
+	staffline_x_max -= staffline_xOffset
+	
+	draw_staff_line_body(staffline_x_min, staffline_x_max, center_staff_line_yPos, "clef_percussion")
+	
+	var next_starting_measure_index
+	if !ended_last_measure and !is_panorama:
+		next_starting_measure_index = starting_measure_index + x_offsets.size()
+	return next_starting_measure_index
 		
-	notation_page.add_child(notation)
-			
+func add_beam_type(current_notation, prev_notation, beam_int_type, voice_index):
+	var current_stem_node = current_notation.get_child_node()
+	var prev_stem_node = prev_notation.get_child_node()
+	var beam_integers = current_notation.beam_integers
+	var num_beams = beam_integers.count(beam_int_type)
+	
+	for beam_id in range(num_beams):
+		var stem_yPos = stem_yPos_both_voices[voice_index-1]
+		var yOffset = beam_id*(Global.BEAM_YSIZE+Global.BEAM_YSPACING)
+		var beam_yMin
+		if voice_index == 2:
+			beam_yMin = stem_yPos - yOffset - Global.BEAM_YSIZE
+		else:
+			beam_yMin = stem_yPos + yOffset
+		
+		var beam_x_size
+		var beam_xMin
+		if beam_int_type == 0: #full
+			beam_x_size = current_notation.xMin - prev_notation.xMin
+			beam_xMin = prev_notation.xMin
+		if beam_int_type == 1: #stub right
+			beam_x_size = Global.BEAM_XSTUB
+			beam_xMin = prev_notation.xMin
+		if beam_int_type == 2: #stub left
+			beam_x_size = Global.BEAM_XSTUB
+			beam_xMin = current_notation.xMin - beam_x_size	
+		var beam_node = ColorRect.new()
+		beam_node.color = Color(0, 0, 0)
+		beam_node.position = Vector2(beam_xMin, beam_yMin)
+		beam_node.size = Vector2(beam_x_size, Global.BEAM_YSIZE)
+		prev_stem_node.add_child(beam_node)
+		
+func add_beam_nodes(stem_notation_nodes_both_voices, voice_index):
+	var stem_notation_nodes = stem_notation_nodes_both_voices[voice_index-1]
+	for i in range(1, stem_notation_nodes.size()):
+		var current_notation = stem_notation_nodes[i]
+		var prev_notation = stem_notation_nodes[i-1]
+		add_beam_type(current_notation, prev_notation, 0, voice_index)
+		add_beam_type(current_notation, prev_notation, 1, voice_index)
+		add_beam_type(current_notation, prev_notation, 2, voice_index)
+		
 func populate_notations():
-	for child in notation_pages.get_children():
-		child.queue_free()
-	
 	noteheads = []
+	var stem_notation_nodes_both_voices = [[], []]
 	
-	var measure_line_x_list = []
-	var notation_nodes = []
-	var notation_nodes_copy = []
+	notation_measure_list = []
 	
-	for data in song.notation_data:
-		for i in range(2):
-			var notation = NOTATION_SCENE.instantiate()
-			
+	var current_notation
+	var prev_category
+	var prev_notation_measure
+	
+	for measure_data in song.notation_data:
+		var notation_measure = NOTATION_MEASURE_SCENE.instantiate()
+		notation_measure_list.append(notation_measure)
+		
+		var time_sig_notations = []
+		
+		for data in measure_data:
 			var category = data[0]
-			notation.category = category
-			notation.time = data[1]
-			notation.xMin = data[3] + x_min
-			notation.yMin = data[4] + y_min
-			notation.xMax = data[5] + x_min
-			notation.yMax = data[6] + y_min
-			var misc = data[7]
 			
-			var node
-			
-			if category == "sprite" or category == "notehead":
-				node = Sprite2D.new()
-				notation.file_name = data[2]
-				if category == "sprite" and misc == "measureline":
-					measure_line_x_list.append([notation.xMin, notation.xMax])
-				if category == "notehead":
-					notation.midi_id = misc
+			if category == "gaps":
+				notation_measure.min_gap_ratio_both_voices = [data[1], data[2]]
+			else:
+				var time = data[1]
+				if time == -1:
+					time = null
+				var file_name = data[2]
+				var misc
+				if data.size() > 7:
+					misc = data[7]
+				
+				var xMin = data[3] * Global.STAFF_SPACE_HEIGHT
+				var yMin = data[4] * Global.STAFF_SPACE_HEIGHT
+				var xMax = data[5] * Global.STAFF_SPACE_HEIGHT
+				var yMax = data[6] * Global.STAFF_SPACE_HEIGHT
+				
+				#if prev_category != "timesig":
+				current_notation = NOTATION_SCENE.instantiate()
+				current_notation.category = category
+				current_notation.time = time
+				current_notation.xMin = xMin
+				current_notation.yMin = yMin
+				current_notation.xMax = xMax
+				current_notation.yMax = yMax
+				
+				var node
+				
+				if category == "sprite" or category == "notehead" or category == "measureline" or category == "timesig" or category == "wholerest" or category == "multirest_number":
+					node = Sprite2D.new()
+					current_notation.node_type = "Sprite2D"
+					var file_path = Global.NOTATIONS_PATH + file_name + ".png"
+					node.texture = load(file_path)
+					
+					var desired_width = xMax - xMin
+					var desired_height = yMax - yMin
+
+					var tex_width = node.texture.get_width()
+					var tex_height = node.texture.get_height()
+					
+					node.centered = false
+					node.scale = Vector2(desired_width / tex_width, desired_height / tex_height)
+				
+					if category == "notehead":
+						current_notation.midi_id = misc
+						node.z_index = 1
+						noteheads.append(current_notation)
+					if category == "timesig":
+						time_sig_notations.append(current_notation)
+						
+				elif category == "line" or category == "stem" or category == "multirest_line":
+					node = Line2D.new()
+					current_notation.node_type = "Line2D"
+					node.default_color = Color(0, 0, 0)
+					node.width = 2
+					if category == "stem":
+						var digits = []
+						for c in str(int(misc)).split(""):
+							digits.append(int(c))
+						current_notation.voice_index = digits[0]
+						digits.remove_at(0)
+						current_notation.beam_integers = digits
+						stem_notation_nodes_both_voices[current_notation.voice_index-1].append(current_notation)
+				elif category == "rect" or category == "multirest_rect":
+					node = ColorRect.new()
+					current_notation.node_type = "ColorRect"
+				elif category == "measure_number":
+					node = Label.new()
+					current_notation.node_type = "Label"
+					var number_text = str(file_name)
+					node.text = number_text
 					node.z_index = 1
-					#TODO: all these assignments are running twice!
-					#if i == 0:
-					noteheads.append(notation)
-			elif category == "line":
-				node = Line2D.new()
-				node.default_color = Color(0, 0, 0)
-				node.width = 2
-			elif category == "rect":
-				node = ColorRect.new()
-			elif category == "measure_number":
-				node = Label.new()
-				var number_text = str(data[2])
-				node.text = number_text
-				node.z_index = 1
+					
+					var label_settings = LabelSettings.new()
+					var font = SystemFont.new()
+					font.font_names = ["Verdana"]
+					label_settings.font = font
+					label_settings.font_size = 14
+					label_settings.font_color = Color(0, 0, 0)
+					node.set_label_settings(label_settings)
+				else:
+					assert(false, "Expected notation category node not found! " + category)
 				
-				var label_settings = LabelSettings.new()
-				var font = SystemFont.new()
-				font.font_names = ["Verdana"]
-				label_settings.font = font
-				label_settings.font_size = 14
-				label_settings.font_color = Color(0, 0, 0)
-				node.set_label_settings(label_settings)
-			else:
-				assert(false, "Expected notation category node not found! " + category)
+				current_notation.add_child(node)
+
+				if (category == "measureline" and file_name != "measure_end") or category == "wholerest" or category.begins_with("multirest"):
+					prev_notation_measure.add_child(current_notation)
+				else:
+					notation_measure.add_child(current_notation)
 			
-			notation.add_child(node)
-			
-			if i == 0:
-				notation_nodes.append(notation)
-			else:
-				notation_nodes_copy.append(notation)
+			prev_category = category
+		
+		if time_sig_notations.size() > 0:
+			notation_measure.has_time_sig = true
+			var time_sig_x_min
+			var time_sig_y_min
+			var time_sig_x_max
+			var time_sig_y_max
+			for time_sig_notation in time_sig_notations:
+				if not time_sig_x_min:
+					time_sig_x_min = time_sig_notation.xMin
+					time_sig_y_min = time_sig_notation.yMin
+					time_sig_x_max = time_sig_notation.xMax
+					time_sig_y_max = time_sig_notation.yMax
+				else:
+					time_sig_x_min = min(time_sig_x_min, time_sig_notation.xMin)
+					time_sig_y_min = min(time_sig_y_min, time_sig_notation.yMin)
+					time_sig_x_max = max(time_sig_x_max, time_sig_notation.xMax)
+					time_sig_y_max = max(time_sig_y_max, time_sig_notation.yMax)
+					
+			var notation = NOTATION_SCENE.instantiate()
+			notation.category = "timesig"
+			notation.xMin = time_sig_x_min
+			notation.yMin = time_sig_y_min
+			notation.xMax = time_sig_x_max
+			notation.yMax = time_sig_y_max
 				
-	generate_notation_page_and_time_lists(notation_nodes, notation_nodes_copy, measure_line_x_list)
-
-func get_current_notation_xOffset():
-	var page_number = get_current_page_number(true)
-	return float(notation_page_list[page_number][0] - x_min)
+			for time_sig_notation in time_sig_notations:
+				var child_node = time_sig_notation.get_child_node()
+				time_sig_notation.remove_child(child_node)
+				notation.add_child(child_node)
+				
+				child_node.position.x = time_sig_notation.xMin - notation.xMin
+				child_node.position.y = time_sig_notation.yMin - notation.yMin
+				
+				time_sig_notation.queue_free()
 			
-func get_current_notation_xPos():
-	var index = Utils.binary_search_closest_or_less(notation_time_list, song.current_song_time, 0)
-	if index >= notation_time_list.size()-1:
-		return
-	var current_time_point = notation_time_list[index]
-	var next_time_point = notation_time_list[index+1]
-	return Utils.convert_range(song.current_song_time, current_time_point[0], next_time_point[0], current_time_point[1], next_time_point[1]) - get_current_notation_xOffset()
-
-func get_notation_page(page_number):
-	if page_number == null or page_number < 0 or page_number >= notation_page_list.size():
-		return
-	return notation_page_list[page_number][PAGE_INDEX]
+			notation_measure.add_child(notation)
+										
+		prev_notation_measure = notation_measure
 	
-func get_current_page_number(force_valid):
-	var page_number = Utils.binary_search_closest_or_less(notation_page_list, song.current_song_time, 1)
+	for i in range(notation_measure_list.size()):
+		var notation_measure = notation_measure_list[i]
+		notation_measure.construct(i)
+	
+	#after construct, add beams
+	add_beam_nodes(stem_notation_nodes_both_voices, 1)
+	add_beam_nodes(stem_notation_nodes_both_voices, 2)
+	
+func get_current_notation_xPos():
+	if time_xPos_points == null:
+		return
+	var index = Utils.binary_search_closest_or_less(time_xPos_points, song.current_song_time, 0)
+	if index < 0 or index >= time_xPos_points.size()-1:
+		return
+	var current_time_point = time_xPos_points[index]
+	var next_time_point = time_xPos_points[index+1]
+	return Utils.convert_range(song.current_song_time, current_time_point[0], next_time_point[0], current_time_point[1], next_time_point[1])
+
+func get_current_line_number(force_valid):
+	var line_number = Utils.binary_search_closest_or_less(notation_lines, song.current_song_time, 0)
 	
 	if force_valid:
-		page_number = max(page_number, 0)
-		page_number = min(page_number, notation_page_list.size())
+		line_number = max(line_number, 0)
+		line_number = min(line_number, notation_lines.size()-1)
 		
-	return page_number
+	return line_number
 
 func update_contents():
-	var current_page_number = get_current_page_number(true)
-	if current_page_number != prev_page_number:
-		var current_notation_page = get_notation_page(current_page_number)
-		var prev_notation_page = get_notation_page(prev_page_number)
-		if current_notation_page:
-			current_notation_page.visible = true
-		if prev_notation_page:
-			prev_notation_page.visible = false
-	prev_page_number = current_page_number
+	#update page
+	var current_line_number = get_current_line_number(true)
+	if current_line_number != prev_line_number:
+		for child in notation_display.get_children():
+			notation_display.remove_child(child)
+		for child in staff_body.get_children():
+			child.queue_free()
+		
+		time_xPos_points = []
+		for staffline_id in range(Global.NUM_NOTATION_ROWS):
+			display_measures_from_index(current_line_number, staffline_id)
+				
+	prev_line_number = current_line_number
 	
 	# Update seek line
 	seek_line.clear_points()
 	var seek_x = get_current_notation_xPos()
 	if seek_x:
 		seek_line.add_point(Vector2(seek_x, y_min))
-		seek_line.add_point(Vector2(seek_x, y_max))
-
-func take_screenshots():
-	if notation_page_list.size() == 0:
-		return
-
-	var children = notation_pages.get_children()
-	print(children.size())
-	for i in range(children.size()):
-		var notation_page = children[i]
-		notation_page.visible = true
-		notation_page.take_screenshot(i)
-		await get_tree().process_frame
-		notation_page.visible = false
-
-	#clear junk from each notation page
-	for notation_page in notation_pages.get_children():
-		for child in notation_page.get_children():
-			child.queue_free()	
-	await get_tree().process_frame
-
-	#add .png texture to each notatio page
-	children = notation_pages.get_children()
-	for i in range(children.size()):
-		var notation_page = children[i]
-		var tex_rect = TextureRect.new()
+		seek_line.add_point(Vector2(seek_x, y_min + Global.NOTATION_YSIZE))
 		
-		var image = Image.new()
-		if image.load("user://test_notation_page_" + str(i) + ".png") == OK:
-			var tex = ImageTexture.create_from_image(image)
-			tex_rect.texture = tex
-		
-		tex_rect.stretch_mode = TextureRect.STRETCH_SCALE
-		
-		tex_rect.position = Vector2(x_min, y_min)
-		tex_rect.size = Vector2(Global.NOTATION_XSIZE*2, Global.NOTATION_YSIZE) #TODO
-		
-		tex_rect.visible = true
-		notation_page.add_child(tex_rect)
-	
-	await get_tree().process_frame
-
-	get_notation_page(0).visible = true
-
-	print("CHILDREN: " + str(notation_pages.get_children().size()))
-
 func draw_background():
 	background.polygon = [
 		Vector2(x_min, y_min),
@@ -338,40 +504,3 @@ func draw_background():
 		Vector2(x_min, y_max)
 	]
 	background.color = Global.STAFF_BACKGROUND_COLOR
-
-func draw_cover():
-	var cover_x_max = Global.NOTATION_DRAW_AREA_XOFFSET+Global.NOTATION_BOUNDARYXMINOFFSET+12
-	cover.polygon = [
-		Vector2(x_min, y_min),
-		Vector2(cover_x_max, y_min),
-		Vector2(cover_x_max, y_max),
-		Vector2(x_min, y_max)
-	]
-	cover.color = Global.STAFF_BACKGROUND_COLOR
-
-func draw_clef():
-	var xMin = Global.STAFF_SPACE_HEIGHT * 2 + x_min
-	var yMin = center_staff_line_yPos - Global.STAFF_SPACE_HEIGHT
-	var xMax = xMin + 150 #TODO
-	var yMax = center_staff_line_yPos + Global.STAFF_SPACE_HEIGHT
-	
-	var xCenter = (xMin + xMax) * 0.5
-	var yCenter = (yMin + yMax) * 0.5
-	
-	var scale_factor = 0.07 #TODO: set programatically
-	clef.scale = scale*scale_factor
-	clef.position = Vector2(xMin + 10, yCenter)
-
-func draw_staff_lines():
-	for child in staff_lines.get_children():
-		child.queue_free()
-	
-	for i in range(5):
-		var yPos = center_staff_line_yPos + (i-2)*Global.STAFF_SPACE_HEIGHT
-		var line = Line2D.new()
-		line.default_color = Color(0, 0, 0)
-		line.width = 2
-		line.add_point(Vector2(x_min, yPos))
-		line.add_point(Vector2(x_max, yPos))
-
-		staff_lines.add_child(line)

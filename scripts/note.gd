@@ -174,7 +174,7 @@ func hit():
 	
 	for notation in linked_notations:
 		var notation_tween = get_tree().create_tween()
-		var notation_sprite = notation.get_children()[0]
+		var notation_sprite = notation.get_child_node()
 		notation_tween.tween_property(notation_sprite, "scale", Vector2(0.0, 0.0), 0.1)
 	
 	highway.hit_count += 1

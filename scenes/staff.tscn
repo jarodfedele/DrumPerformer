@@ -1,7 +1,6 @@
-[gd_scene load_steps=3 format=3 uid="uid://crklrr1ifrpm3"]
+[gd_scene load_steps=2 format=3 uid="uid://crklrr1ifrpm3"]
 
 [ext_resource type="Script" uid="uid://61ovdhx127v0" path="res://scripts/staff.gd" id="1_xh1k6"]
-[ext_resource type="Texture2D" uid="uid://dis8fms30rq6g" path="res://assets/notations/clef_percussion.png" id="4_vln3h"]
 
 [node name="Staff" type="Node2D"]
 z_index = 16
@@ -9,14 +8,9 @@ script = ExtResource("1_xh1k6")
 
 [node name="Background" type="Polygon2D" parent="."]
 
-[node name="NotationPages" type="Node2D" parent="."]
+[node name="StaffBody" type="Node2D" parent="."]
 
-[node name="Cover" type="Polygon2D" parent="."]
-
-[node name="Clef" type="Sprite2D" parent="."]
-texture = ExtResource("4_vln3h")
-
-[node name="StaffLines" type="Node2D" parent="."]
+[node name="NotationDisplay" type="Node2D" parent="."]
 
 [node name="SeekLine" type="Line2D" parent="."]
 width = 4.0

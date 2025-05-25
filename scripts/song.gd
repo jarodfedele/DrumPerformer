@@ -1,13 +1,10 @@
 extends Node
 
-const VenueCanvasLayerScene = preload("res://scenes/venue_canvas_layer.tscn")
-const ViewportHighway3DScene = preload("res://scenes/viewport_highway_3d.tscn")
-const Highway3DScene = preload("res://scenes/highway_3d.tscn")
-
-const StaffScene = preload("res://scenes/staff.tscn")
+const VENUE_CANVAS_LAYER_SCENE = preload("res://scenes/venue_canvas_layer.tscn")
 
 const BackButtonScene = preload("res://scenes/back_button.tscn")
 
+@onready var notation_pages = $NotationPages
 
 @onready var song_audio_player = get_node("/root/Game/AudioManager/SongAudioPlayer")
 @onready var timecode = get_node("/root/Game/Song/AudioBar/Timecode")
@@ -62,26 +59,56 @@ func _physics_process(delta):
 func set_audio_players_to_song():
 	var audio_file = load(Global.current_song_path + "backing.wav")
 	song_audio_player.stream = audio_file
+
+func get_layout_coordinates(is_panorama):
+	var highway_x_min
+	var highway_y_min
+	var highway_x_size
+	var highway_y_size
+
+	var staff_x_min
+	var staff_y_min
+	var staff_x_size
+	var staff_y_size
 	
+	var viewport_size = get_viewport().get_visible_rect().size
+	var base_width = viewport_size.x
+	var base_height = viewport_size.y
+	var x_center = base_width*0.5
+	
+	if is_panorama:
+		staff_x_size = base_width
+		staff_x_min = 0
+		staff_y_size = Global.NOTATION_YSIZE
+		staff_y_min = base_height - staff_y_size
+		
+		highway_x_size = Global.HIGHWAY_XSIZE
+		highway_x_min = x_center - (highway_x_size*0.5)
+		highway_y_size = Global.HIGHWAY_YSIZE
+		highway_y_min = staff_y_min - highway_y_size
+	
+	else:
+		staff_x_min = base_width * 0.4
+		staff_x_size = base_width - staff_x_min
+		staff_y_size = Global.NOTATION_YSIZE*Global.NUM_NOTATION_ROWS
+		staff_y_min = base_height - staff_y_size
+		
+		highway_x_size = Global.HIGHWAY_XSIZE
+		highway_x_min = (base_width-staff_x_size)*0.5 - (highway_x_size*0.5)
+		highway_y_size = Global.HIGHWAY_YSIZE + 100
+		highway_y_min = base_height - highway_y_size
+		
+	return [highway_x_min, highway_y_min, highway_x_size, highway_y_size,
+		staff_x_min, staff_y_min, staff_x_size, staff_y_size]
+		
 func load_song(song_path):
 	for child in get_children():
 		child.queue_free()
 	
-	var venue_canvas_layer = VenueCanvasLayerScene.instantiate()
+	var venue_canvas_layer = VENUE_CANVAS_LAYER_SCENE.instantiate()
 	venue_canvas_layer.layer = -2
 	add_child(venue_canvas_layer)
 	
-	#var canvas_layer = CanvasLayer.new()
-	#var viewport_container = SubViewportContainer.new()
-	#var viewport_highway_3d = ViewportHighway3DScene.instantiate()
-	#viewport_container.add_child(viewport_highway_3d)
-	#canvas_layer.add_child(viewport_container)
-	#canvas_layer.layer = -1
-	#add_child(canvas_layer)
-	
-	#var highway_3d = Highway3DScene.instantiate()
-	#add_child(highway_3d)
-		
 	loaded = false
 	
 	Global.current_gamedata = Utils.read_text_file(song_path + "gamedata.txt")
@@ -97,16 +124,26 @@ func load_song(song_path):
 	var base_height = viewport_size.y
 	var x_center = base_width*0.5
 	
-	var highway_x_min = x_center - (Global.HIGHWAY_XSIZE*0.5)
-	var highway_y_max = base_height-Global.NOTATION_YSIZE
-	var highway_y_min = highway_y_max-Global.HIGHWAY_YSIZE
+	var is_panorama = false
+	var layout_coordinates = get_layout_coordinates(is_panorama)
+	
+	var highway_x_min = layout_coordinates[0]
+	var highway_y_min = layout_coordinates[1]
+	var highway_x_size = layout_coordinates[2]
+	var highway_y_size = layout_coordinates[3]
+	
+	var staff_x_min = layout_coordinates[4]
+	var staff_y_min = layout_coordinates[5]
+	var staff_x_size = layout_coordinates[6]
+	var staff_y_size = layout_coordinates[7]
+		
 	highway = Highway.create(Global.drum_kit["Lanes"], true, 
-		highway_x_min, highway_y_min, Global.HIGHWAY_XSIZE, Global.HIGHWAY_YSIZE, 
+		highway_x_min, highway_y_min, highway_x_size, highway_y_size, 
 		beatline_data, hihat_pedal_data, sustain_data, note_data)
 	add_child(highway)
 	highway.update_contents(0)
 	
-	staff = Staff.create(true, 0, 0, highway_y_max, base_width, base_height)
+	staff = Staff.create(true, is_panorama, staff_x_min, staff_y_min, staff_x_size, staff_y_size)
 	add_child(staff)
 	
 	var audio_bar_x_size = 1300
@@ -118,9 +155,6 @@ func load_song(song_path):
 	if song_path != Global.current_song_path:
 		Global.current_song_path = song_path
 		set_audio_players_to_song()
-	
-	staff.populate_notations()
-	#staff.take_screenshots()
 	
 	link_notes_between_highway_and_staff()
 	
@@ -146,7 +180,7 @@ func link_notes_between_highway_and_staff():
 		notation.color_r = note.color_r
 		notation.color_g = note.color_g
 		notation.color_b = note.color_b
-		var notation_sprite = notation.get_children()[0]
+		var notation_sprite = notation.get_child_node()
 		var shader_material = ShaderMaterial.new()
 		shader_material.shader = color_replace_shader
 		notation_sprite.material = shader_material
@@ -222,20 +256,7 @@ func process_sustain_data(values):
 	sustain_data.append(lane_data)
 
 func process_notation_data(values):
-	var category = values[0]
-	var time = values[1]
-	if time == -1:
-		time = null
-	var file_name = values[2]
-	var xMin = values[3] * Global.STAFF_SPACE_HEIGHT
-	var yMin = values[4] * Global.STAFF_SPACE_HEIGHT
-	var xMax = values[5] * Global.STAFF_SPACE_HEIGHT
-	var yMax = values[6] * Global.STAFF_SPACE_HEIGHT
-	var misc
-	if values.size() > 7:
-		misc = values[7]
-	
-	notation_data.append([category, time, file_name, xMin, yMin, xMax, yMax, misc])
+	notation_data[notation_data.size()-1].append(values)
 
 func reset_chart_data():
 	staffline_data.clear()
@@ -254,7 +275,7 @@ func reset_chart_data():
 		line = line.strip_edges()
 		var values = Utils.separate_string(line)
 		
-		if values.size() == 1:
+		if values.size() == 1 and values[0] == values[0].to_upper():
 			current_section = line
 		elif values.size() != 0:
 			if current_section == "GENERAL":
@@ -262,4 +283,7 @@ func reset_chart_data():
 			if current_section == "BEAT_LINES":
 				process_beatline_data(values)
 			if current_section == "NOTATIONS":
-				process_notation_data(values)
+				if values[0] == "measure":
+					notation_data.append([])
+				else:
+					process_notation_data(values)

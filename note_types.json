@@ -1,0 +1,50 @@
+{
+	"kick": {
+		"States": [ "head" ],
+		"Properties": [ "foot" ]
+	},
+	"snare": {
+		"States": [ "head", "sidestick", "rim" ],
+		"Properties": []
+	},
+	"octoban": {
+		"States": [ "head" ],
+		"Properties": [ "pitch" ]
+	},
+	"racktom": {
+		"States": [ "head", "rim" ],
+		"Properties": [ "pitch" ]
+	},
+	"floortom": {
+		"States": [ "head", "rim" ],
+		"Properties": [ "pitch" ]
+	},
+	"hihat": {
+		"States": [ "closed", "open", "halfopen", "stomp", "splash", "lift" ],
+		"Properties": [ "pedal" ]
+	},
+	"ride": {
+		"States": [ "normal", "bell" ],
+		"Properties": []
+	},
+	"crash": {
+		"States": [ "normal" ],
+		"Properties": [ "side" ]
+	},
+	"china": {
+		"States": [ "normal" ],
+		"Properties": [ "side" ]
+	},
+	"splash": {
+		"States": [ "normal" ],
+		"Properties": [ "side" ]
+	},
+	"stack": {
+		"States": [ "normal" ],
+		"Properties": [ "side" ]
+	},
+	"bell": {
+		"States": [ "normal" ],
+		"Properties": []
+	}
+}
