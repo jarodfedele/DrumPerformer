@@ -1,12 +1,22 @@
-[gd_scene load_steps=2 format=3 uid="uid://crklrr1ifrpm3"]
+[gd_scene load_steps=5 format=3 uid="uid://crklrr1ifrpm3"]
 
 [ext_resource type="Script" uid="uid://61ovdhx127v0" path="res://scripts/staff.gd" id="1_xh1k6"]
+[ext_resource type="Texture2D" uid="uid://cjg815rrnuemf" path="res://textures/staff_paper.png" id="2_3gxsk"]
+[ext_resource type="Shader" uid="uid://cr24bm4d8phuo" path="res://shaders/fade_edges.gdshader" id="2_ov8dy"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_xh1k6"]
+shader = ExtResource("2_ov8dy")
+shader_parameter/edge_fade_1 = 0.246
+shader_parameter/edge_fade_2 = 0.021
 
 [node name="Staff" type="Node2D"]
 z_index = 16
 script = ExtResource("1_xh1k6")
 
-[node name="Background" type="Polygon2D" parent="."]
+[node name="Background" type="TextureRect" parent="."]
+material = SubResource("ShaderMaterial_xh1k6")
+texture = ExtResource("2_3gxsk")
+expand_mode = 1
 
 [node name="StaffBody" type="Node2D" parent="."]
 

@@ -8,7 +8,8 @@ var x_size: int
 var y_size: int
 var x_max: int
 var y_max: int
-var staffline_xOffset: float
+var staffline_x_min
+var staffline_x_max
 
 var notation_measure_list: Array
 
@@ -56,10 +57,12 @@ static func create(is_playable: bool, is_panorama,
 	instance.y_max = instance.y_min + instance.y_size
 	
 	if instance.is_panorama:
-		instance.staffline_xOffset = 0
+		instance.staffline_x_min = instance.x_min + 60
+		instance.staffline_x_max = instance.x_max
 	else:
-		instance.staffline_xOffset = 30
-
+		instance.staffline_x_min = instance.x_min + 60
+		instance.staffline_x_max = instance.x_max - 30
+		
 	return instance
 
 func _ready():
@@ -79,9 +82,8 @@ func get_consecutive_measure_x_offsets(starting_measure_index) -> Array:
 	var x_offsets = []
 	var ended_last_measure = true
 	
-	var initial_x_offset = staffline_xOffset
+	var initial_x_offset = staffline_x_min - x_min
 	var x_offset = initial_x_offset
-	var staffline_x_max = x_max-staffline_xOffset
 	
 	var measure_index = starting_measure_index
 	
@@ -114,15 +116,37 @@ func get_consecutive_measure_x_offsets(starting_measure_index) -> Array:
 				var line_x_size = current_x_boundary_max - boundary_x_min
 				var desired_x_size = final_x_boundary_max - boundary_x_min
 				var ratio = smallest_min_gap * (desired_x_size/float(line_x_size))
-				if ratio < 0.8 and measure_index > starting_measure_index:
+				if ratio < 0.85 and measure_index > starting_measure_index:
 					x_offsets.pop_back()
 					current_x_boundary_max = prev_x_boundary_max
-				print(str(x_offsets.size()) + " " + str(ratio))
+				
+				#add time signature at end of line if changing
+				var last_measure_index = starting_measure_index+x_offsets.size()-1
+				var last_measure = notation_measure_list[last_measure_index]
+				if last_measure_index < notation_measure_list.size()-1:
+					var next_measure = notation_measure_list[last_measure_index+1]
+					if next_measure.has_time_sig:
+						var time_sig_size_x = next_measure.time_sig_notation.xMax - next_measure.time_sig_notation.xMin
+						var time_sig_notation_copy = next_measure.time_sig_notation.duplicate()
+						last_measure.add_child(time_sig_notation_copy)
+						time_sig_notation_copy.xMin = last_measure.size_x + Global.TIME_SIG_X_PADDING
+						time_sig_notation_copy.xMax = time_sig_notation_copy.xMin + time_sig_size_x
+						current_x_boundary_max += Global.TIME_SIG_X_PADDING + time_sig_size_x
+						var center_staff_line_yPos = Global.center_staff_line_index*Global.STAFF_SPACE_HEIGHT + 0
+						var time_sig_size_y = time_sig_notation_copy.yMax - time_sig_notation_copy.yMin
+						time_sig_notation_copy.yMin = center_staff_line_yPos - Global.STAFF_SPACE_HEIGHT*2
+						time_sig_notation_copy.yMax = time_sig_notation_copy.yMin + time_sig_size_y
 				
 				#justify
 				for i in range(x_offsets.size()):	
 					var justified_measure_index = starting_measure_index + i
 					var justified_notation_measure = notation_measure_list[justified_measure_index]
+					
+					for point in justified_notation_measure.time_xPos_points:
+						var xPos = point[1] + x_offsets[i]
+						var justify_xPos_offset = get_justify_x_offset(xPos, boundary_x_min, current_x_boundary_max, final_x_boundary_max)
+						point[1] += justify_xPos_offset
+						
 					for notation in justified_notation_measure.get_children():
 						var xMin = notation.xMin + x_offsets[i]
 						var xMax = notation.xMax + x_offsets[i]
@@ -147,10 +171,7 @@ func get_consecutive_measure_x_offsets(starting_measure_index) -> Array:
 								beam_xMax += justify_beam_xMax_offset - x_offsets[i]
 								beam.position.x = beam_xMin
 								beam.size.x = beam_xMax - beam_xMin
-								
-								if starting_measure_index == 0:
-									print("JUSTIFY: " + str(beam_xMin) + " " + str(beam_xMax) + " " + str(boundary_x_min) + " " + str(current_x_boundary_max) + " " + str(final_x_boundary_max) + " " + str(justify_beam_xMin_offset) + " " + str(justify_beam_xMax_offset))
-							
+
 			ended_last_measure = false
 			break
 		
@@ -175,19 +196,21 @@ func store_notation_lines():
 			break
 		
 		starting_measure_index += num_drawn_measures
+		if is_panorama:
+			starting_measure_index -= 1
 	
 	for notation_measure in notation_measure_list:
 		notation_measure.set_notation_positions()
 		
-func draw_staff_line_body(staffline_x_min, staffline_x_max, center_staff_line_yPos, clef_filename):
+func draw_staff_line_body(line_x_min, line_x_max, center_staff_line_yPos, clef_filename):
 	#staff lines
 	for i in range(5):
 		var yPos = center_staff_line_yPos + (i-2)*Global.STAFF_SPACE_HEIGHT
 		var line = Line2D.new()
 		line.default_color = Color(0, 0, 0)
 		line.width = 2
-		line.add_point(Vector2(staffline_x_min, yPos))
-		line.add_point(Vector2(staffline_x_max, yPos))
+		line.add_point(Vector2(line_x_min, yPos))
+		line.add_point(Vector2(line_x_max, yPos))
 
 		staff_body.add_child(line)
 	
@@ -241,16 +264,14 @@ func display_measures_from_index(starting_notation_line_number, staffline_id):
 		measure_index += 1
 	
 	#staff lines
-	var staffline_x_min = x_min + staffline_xOffset
-	var staffline_x_max
+	var line_x_max
 	if ended_last_measure:
 		var last_notation_measure = notation_measure_list[notation_measure_list.size()-1]
-		staffline_x_max = last_notation_measure.position.x + last_notation_measure.size_x
+		line_x_max = last_notation_measure.position.x + last_notation_measure.size_x
 	else:
-		staffline_x_max = x_max
-	staffline_x_max -= staffline_xOffset
+		line_x_max = staffline_x_max
 	
-	draw_staff_line_body(staffline_x_min, staffline_x_max, center_staff_line_yPos, "clef_percussion")
+	draw_staff_line_body(staffline_x_min, line_x_max, center_staff_line_yPos, "clef_percussion")
 	
 	var next_starting_measure_index
 	if !ended_last_measure and !is_panorama:
@@ -350,15 +371,18 @@ func populate_notations():
 					var file_path = Global.NOTATIONS_PATH + file_name + ".png"
 					node.texture = load(file_path)
 					
-					var desired_width = xMax - xMin
-					var desired_height = yMax - yMin
-
-					var tex_width = node.texture.get_width()
-					var tex_height = node.texture.get_height()
-					
 					node.centered = false
-					node.scale = Vector2(desired_width / tex_width, desired_height / tex_height)
-				
+					Utils.set_sprite_position_and_scale(node, 0, 0, xMax-xMin, yMax-yMin)
+					
+					#var desired_width = xMax - xMin
+					#var desired_height = yMax - yMin
+#
+					#var tex_width = node.texture.get_width()
+					#var tex_height = node.texture.get_height()
+					#
+					#node.centered = false
+					#node.scale = Vector2(desired_width / tex_width, desired_height / tex_height)
+				#
 					if category == "notehead":
 						current_notation.midi_id = misc
 						node.z_index = 1
@@ -498,10 +522,32 @@ func update_contents():
 		seek_line.add_point(Vector2(seek_x, y_min + Global.NOTATION_YSIZE))
 		
 func draw_background():
-	background.polygon = [
-		Vector2(x_min, y_min),
-		Vector2(x_max, y_min),
-		Vector2(x_max, y_max),
-		Vector2(x_min, y_max)
-	]
-	background.color = Global.STAFF_BACKGROUND_COLOR
+	background.modulate.a = 0.93
+	background.position = Vector2(x_min, y_min)
+	background.size = Vector2(x_size, y_size)
+	#Utils.set_sprite_position_and_scale(background, x_min, y_min, x_max, y_max)
+	
+	const SPIRAL_X_RADIUS = 20
+	const SPIRAL_Y_SIZE = 20
+	var num_steps
+	var spiral_xPos
+	if is_panorama:
+		num_steps = 6
+		spiral_xPos = SPIRAL_X_RADIUS*0.9
+	else:
+		num_steps = 21
+		spiral_xPos = SPIRAL_X_RADIUS*0.5
+
+	for i in range(num_steps):
+		#print(i)
+		var spiral = Sprite2D.new()
+		spiral.texture = load("res://textures/spiral.png")
+		background.add_child(spiral)
+		
+		var spiral_yPos = y_size*(i/float(num_steps)) + SPIRAL_Y_SIZE*0.75
+
+		print(spiral_yPos)
+		spiral.centered = false
+		Utils.set_sprite_position_and_scale(spiral, spiral_xPos-SPIRAL_X_RADIUS, spiral_yPos, spiral_xPos+SPIRAL_X_RADIUS, spiral_yPos+SPIRAL_Y_SIZE)
+		print("SPIRAL: " + str(spiral.position) + " " + str(spiral.scale))
+		

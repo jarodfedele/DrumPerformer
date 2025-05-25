@@ -37,7 +37,7 @@ func set_notation_positions():
 func construct(test_index):
 	time_xPos_points = []
 	
-	#get measure xMin and xMax
+	#get measure size_x and normalize x positions
 	var xMin
 	var xMax
 	for notation in get_children():
@@ -51,8 +51,6 @@ func construct(test_index):
 				xMax = notation.xMax
 			else:
 				xMax = max(xMax, notation.xMax)
-	
-	#get measure size_x and normalize x positions
 	if xMin:
 		size_x = xMax - xMin
 		for notation in get_children():

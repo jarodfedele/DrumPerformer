@@ -276,3 +276,17 @@ func load_text_file(path: String) -> String:
 	var text := file.get_as_text()
 	file.close()
 	return text
+
+static func set_sprite_position_and_scale(sprite: Sprite2D, xMin, yMin, xMax, yMax):
+	var desired_width = xMax - xMin
+	var desired_height = yMax - yMin
+
+	var tex_width = float(sprite.texture.get_width())
+	var tex_height = float(sprite.texture.get_height())
+	
+	if sprite.centered:
+		sprite.position = Vector2((xMax-xMin)*0.5, (yMax-yMin)*0.5)
+	else:
+		sprite.position = Vector2(xMin, yMin)
+		
+	sprite.scale = Vector2(desired_width / tex_width, desired_height / tex_height)

@@ -38,6 +38,7 @@ vec4 linear_dodge(vec4 base, vec4 blend){
     result.a = base.a; // Preserve base alpha or blend them properly
     return result;
 }
+
 vec4 color_burn(vec4 base, vec4 blend){
 	return 1.0 - (1.0 - base) / blend;
 }
