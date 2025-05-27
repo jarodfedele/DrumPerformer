@@ -274,5 +274,5 @@ func update_position():
 	var note_xCenter = (note_xMin + note_xMax)/2
 	var note_yCenter = (note_yMin + note_yMax)/2
 	
-	position = Vector2(note_xCenter, note_yCenter)
+	position = Vector2(int(note_xCenter), int(note_yCenter))
 	scale = Vector2(desired_width / tex_width, desired_height / tex_height)

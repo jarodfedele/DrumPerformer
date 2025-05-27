@@ -1,7 +1,7 @@
 extends Node
 
 static func convert_range(val, oldMin, oldMax, newMin, newMax):
-	return ( (val - oldMin) / (oldMax - oldMin) ) * (newMax - newMin) + newMin
+	return ( (val - oldMin) / float(oldMax - oldMin) ) * (newMax - newMin) + newMin
 	
 static func get_vertical_line_slope(angle):
 	var radians = deg_to_rad(angle)

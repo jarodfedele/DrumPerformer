@@ -10,6 +10,12 @@ var x_max: int
 var y_max: int
 var staffline_x_min
 var staffline_x_max
+var default_center_staff_line_yPos
+var clef_xMin
+var clef_yMin
+var clef_xMax
+var clef_yMax
+var clef_scale
 
 var notation_measure_list: Array
 
@@ -20,13 +26,13 @@ var noteheads: Array
 
 var stem_yPos_both_voices
 
-
 @onready var song = get_parent()
 
 @onready var background = $Background
-@onready var staff_body = $StaffBody
+@onready var contents_sub_viewport = $ContentsSubViewport
+@onready var notation_display = %NotationDisplay
 @onready var seek_line = $SeekLine
-@onready var notation_display = $NotationDisplay
+@onready var contents_display = $ContentsDisplay
 
 var notation_line_list
 var notation_time_list
@@ -40,6 +46,9 @@ const PAGE_INDEX = 3
 const STAFF_SCENE: PackedScene = preload("res://scenes/staff.tscn")
 const NOTATION_MEASURE_SCENE = preload("res://scenes/notation_measure.tscn")
 const NOTATION_SCENE = preload("res://scenes/notation.tscn")
+
+const EDGE_FADE_1 = 0.246
+const EDGE_FADE_2 = 0.021
 
 static func create(is_playable: bool, is_panorama,
 	x_min: int, y_min: int, x_size: int, y_size: int):
@@ -62,19 +71,54 @@ static func create(is_playable: bool, is_panorama,
 	else:
 		instance.staffline_x_min = instance.x_min + 60
 		instance.staffline_x_max = instance.x_max - 30
-		
+	
+	instance.default_center_staff_line_yPos = Global.center_staff_line_index * Global.STAFF_SPACE_HEIGHT
+	
+	instance.clef_xMin = Global.STAFF_SPACE_HEIGHT * 2 + instance.staffline_x_min
+	instance.clef_yMin = instance.default_center_staff_line_yPos - Global.STAFF_SPACE_HEIGHT
+	instance.clef_yMax = instance.default_center_staff_line_yPos + Global.STAFF_SPACE_HEIGHT
+	var texture = load(Global.CLEF_PATH) as Texture2D
+	var tex_size_x = float(texture.get_width())
+	var tex_size_y = float(texture.get_height())
+	var aspect_ratio = tex_size_x/tex_size_y
+	var clef_ySize = instance.clef_yMax - instance.clef_yMin
+	var scaling_factor = clef_ySize/tex_size_y
+	var clef_xSize = tex_size_x*scaling_factor
+	instance.clef_xMax = instance.clef_xMin + clef_xSize
+	instance.clef_scale = Vector2(clef_xSize / tex_size_x, clef_ySize / tex_size_y)
+	
 	return instance
 
 func _ready():
-	var center_staff_line_yPos = Global.center_staff_line_index*Global.STAFF_SPACE_HEIGHT + 0
-	stem_yPos_both_voices = [center_staff_line_yPos-Global.STAFF_SPACE_HEIGHT*7, center_staff_line_yPos+Global.STAFF_SPACE_HEIGHT*5]
+	stem_yPos_both_voices = [default_center_staff_line_yPos-Global.STAFF_SPACE_HEIGHT*7, default_center_staff_line_yPos+Global.STAFF_SPACE_HEIGHT*5]
 
 	draw_background()
 	
 	populate_notations()
 	
 	store_notation_lines()
+	
+	contents_display.texture = contents_sub_viewport.get_texture()
+	contents_display.material.set_shader_parameter("edge_fade_1", EDGE_FADE_1)
+	contents_display.material.set_shader_parameter("edge_fade_2", EDGE_FADE_2)
+	contents_display.material.set_shader_parameter("bounds_min", Vector2(x_min, y_min))
+	contents_display.material.set_shader_parameter("bounds_max", Vector2(x_min+x_size, y_min+y_size))
+	contents_display.material.set_shader_parameter("custom_bounds", true)
+	
+func create_measure_number_node(measure_number_text):
+	var node = Label.new()
+	node.text = measure_number_text
 
+	var label_settings = LabelSettings.new()
+	var font = SystemFont.new()
+	font.font_names = ["Verdana"]
+	label_settings.font = font
+	label_settings.font_size = 14
+	label_settings.font_color = Color(0, 0, 0)
+	node.set_label_settings(label_settings)
+	
+	return node
+	
 func get_justify_x_offset(xPos, boundary_x_min, current_x_boundary_max, final_x_boundary_max):
 	return Utils.convert_range(xPos, boundary_x_min, current_x_boundary_max, boundary_x_min, final_x_boundary_max) - xPos
 	
@@ -95,6 +139,7 @@ func get_consecutive_measure_x_offsets(starting_measure_index) -> Array:
 	var prev_x_boundary_max
 	while measure_index < notation_measure_list.size():
 		var notation_measure = notation_measure_list[measure_index]
+		notation_measure.is_new_line = (measure_index == 0 or (measure_index == starting_measure_index and !is_panorama))
 		smallest_min_gap = min(smallest_min_gap, notation_measure.min_gap_ratio_both_voices[0], notation_measure.min_gap_ratio_both_voices[1])
 		
 		var x_padding
@@ -132,9 +177,8 @@ func get_consecutive_measure_x_offsets(starting_measure_index) -> Array:
 						time_sig_notation_copy.xMin = last_measure.size_x + Global.TIME_SIG_X_PADDING
 						time_sig_notation_copy.xMax = time_sig_notation_copy.xMin + time_sig_size_x
 						current_x_boundary_max += Global.TIME_SIG_X_PADDING + time_sig_size_x
-						var center_staff_line_yPos = Global.center_staff_line_index*Global.STAFF_SPACE_HEIGHT + 0
 						var time_sig_size_y = time_sig_notation_copy.yMax - time_sig_notation_copy.yMin
-						time_sig_notation_copy.yMin = center_staff_line_yPos - Global.STAFF_SPACE_HEIGHT*2
+						time_sig_notation_copy.yMin = default_center_staff_line_yPos - Global.STAFF_SPACE_HEIGHT*2
 						time_sig_notation_copy.yMax = time_sig_notation_copy.yMin + time_sig_size_y
 				
 				#justify
@@ -153,13 +197,21 @@ func get_consecutive_measure_x_offsets(starting_measure_index) -> Array:
 						var justify_xMin_offset = get_justify_x_offset(xMin, boundary_x_min, current_x_boundary_max, final_x_boundary_max)
 						var justify_xMax_offset = get_justify_x_offset(xMax, boundary_x_min, current_x_boundary_max, final_x_boundary_max)
 						
-						if notation.category == "multirest_rect":
+						if notation.category == "multirest_rect" or notation.category == "tuplet_line":
 							notation.xMin += justify_xMin_offset
 							notation.xMax += justify_xMax_offset
+						elif notation.category == "notehead" and notation.voice_index == 2:
+							notation.xMin += justify_xMin_offset
+							notation.xMax += justify_xMin_offset
 						else:
 							notation.xMin += justify_xMax_offset
 							notation.xMax += justify_xMax_offset
 						
+						var voice_2_extra_x_offset = Global.STAFF_SPACE_HEIGHT*2 * (final_x_boundary_max/float(current_x_boundary_max)-1)
+						if notation.voice_index == 2:
+							notation.xMin += voice_2_extra_x_offset
+							notation.xMax += voice_2_extra_x_offset
+							
 						var notation_child_node = notation.get_child_node()
 						if notation.category == "stem":
 							for beam in notation_child_node.get_children():
@@ -169,6 +221,9 @@ func get_consecutive_measure_x_offsets(starting_measure_index) -> Array:
 								var justify_beam_xMax_offset = get_justify_x_offset(beam_xMax, boundary_x_min, current_x_boundary_max, final_x_boundary_max)
 								beam_xMin += justify_beam_xMin_offset - x_offsets[i]
 								beam_xMax += justify_beam_xMax_offset - x_offsets[i]
+								if notation.voice_index == 2:
+									beam_xMin += voice_2_extra_x_offset
+									beam_xMax += voice_2_extra_x_offset
 								beam.position.x = beam_xMin
 								beam.size.x = beam_xMax - beam_xMin
 
@@ -180,6 +235,11 @@ func get_consecutive_measure_x_offsets(starting_measure_index) -> Array:
 	
 	return [x_offsets, ended_last_measure]
 
+func get_index_in_line(notation_measure):
+	var notation_measure_index = notation_measure.measure_index
+	var line_number = Utils.binary_search_closest_or_less(notation_lines, notation_measure_index, 1)
+	return notation_lines[line_number][1] - notation_measure_index
+	
 func store_notation_lines():
 	notation_lines = []
 	
@@ -191,18 +251,36 @@ func store_notation_lines():
 		var ended_last_measure = consecutive_measure_x_offsets[1]
 		var num_drawn_measures = x_offsets.size()
 		notation_lines.append([starting_measure_time, starting_measure_index, x_offsets, ended_last_measure])
-
+		
 		if ended_last_measure:
 			break
-		
+			
 		starting_measure_index += num_drawn_measures
 		if is_panorama:
 			starting_measure_index -= 1
-	
-	for notation_measure in notation_measure_list:
-		notation_measure.set_notation_positions()
+
+	for measure_index in range(notation_measure_list.size()):
+		var notation_measure = notation_measure_list[measure_index]
 		
-func draw_staff_line_body(line_x_min, line_x_max, center_staff_line_yPos, clef_filename):
+		var measure_number_notation = notation_measure.get_measure_number_notation()
+		if measure_number_notation != null:
+			var measure_number_child_node = measure_number_notation.get_child_node()
+			measure_number_notation.remove_child(measure_number_child_node)
+			measure_number_notation.queue_free()
+
+			if notation_measure.is_new_line:
+				var leftmost_notation = notation_measure.get_leftmost_notation()
+				leftmost_notation.add_child(measure_number_child_node)
+			else:
+				var prev_notation_measure = notation_measure_list[notation_measure.measure_index-1]
+				var prev_measure_line_notation = prev_notation_measure.get_measure_line_notation()
+				prev_measure_line_notation.add_child(measure_number_child_node)
+
+	for measure_index in range(notation_measure_list.size()):
+		var notation_measure = notation_measure_list[measure_index]
+		notation_measure.set_notation_positions()
+
+func draw_staff_line_body(line_x_min, line_x_max, center_staff_line_yPos):
 	#staff lines
 	for i in range(5):
 		var yPos = center_staff_line_yPos + (i-2)*Global.STAFF_SPACE_HEIGHT
@@ -212,43 +290,41 @@ func draw_staff_line_body(line_x_min, line_x_max, center_staff_line_yPos, clef_f
 		line.add_point(Vector2(line_x_min, yPos))
 		line.add_point(Vector2(line_x_max, yPos))
 
-		staff_body.add_child(line)
-	
-	#clef
-	var clef_xMin = Global.STAFF_SPACE_HEIGHT * 2 + staffline_x_min
-	var clef_yMin = center_staff_line_yPos - Global.STAFF_SPACE_HEIGHT
-	var clef_yMax = center_staff_line_yPos + Global.STAFF_SPACE_HEIGHT
+		notation_display.add_child(line)
 
-	var file_path = Global.NOTATIONS_PATH + clef_filename + ".png"
-	var clef_node = Sprite2D.new()
-	clef_node.texture = load(file_path)
-	var tex_size_x = float(clef_node.texture.get_width())
-	var tex_size_y = float(clef_node.texture.get_height())
-	var aspect_ratio = tex_size_x/tex_size_y
+func get_line_yMin(staffline_id):
+	return y_min + staffline_id*Global.NOTATION_YSIZE
 	
-	var clef_ySize = clef_yMax - clef_yMin
-	var scaling_factor = clef_ySize/tex_size_y
-	var clef_xSize = tex_size_x*scaling_factor
-	var clef_xMax = clef_xMin + clef_xSize
-	
-	clef_node.centered = false
-	clef_node.position = Vector2(clef_xMin, clef_yMin)
-	clef_node.scale = Vector2(clef_xSize / tex_size_x, clef_ySize / tex_size_y)
+func get_center_staff_line_yPos(staffline_id):
+	return default_center_staff_line_yPos + get_line_yMin(staffline_id)
 
-	staff_body.add_child(clef_node)
-		
 func display_measures_from_index(starting_notation_line_number, staffline_id):
 	var notation_line_number = starting_notation_line_number + staffline_id
-	if notation_line_number >= notation_lines.size():
+	if notation_line_number < 0 or notation_line_number >= notation_lines.size():
 		return
-		
+	
+	var line_yMin = get_line_yMin(staffline_id)
+	var center_staff_line_yPos = get_center_staff_line_yPos(staffline_id)
+	
 	var starting_measure_index = notation_lines[notation_line_number][1]
 	var x_offsets = notation_lines[notation_line_number][2]
 	var ended_last_measure = notation_lines[notation_line_number][3]
 	
-	var line_yMin = y_min + staffline_id*Global.NOTATION_YSIZE #TODO: NUMSTAFFLINES
-	var center_staff_line_yPos = Global.center_staff_line_index*Global.STAFF_SPACE_HEIGHT + line_yMin
-		
+	#clef
+	if !is_panorama or staffline_id == 0:
+		var clef_node = Sprite2D.new()
+		clef_node.texture = load(Global.CLEF_PATH)
+		clef_node.centered = false
+		clef_node.position = Vector2(clef_xMin, center_staff_line_yPos-Global.STAFF_SPACE_HEIGHT)
+		clef_node.scale = clef_scale
+		notation_display.add_child(clef_node)
+	
+	var measure_number_node = create_measure_number_node(notation_measure_list[starting_measure_index].measure_number_text)
+	notation_display.add_child(measure_number_node)
+	var font = measure_number_node.get_theme_font("font")
+	var text_width = font.get_string_size(measure_number_node.text).x
+	measure_number_node.position = Vector2((clef_xMin+clef_xMax)*0.5 - text_width*0.5, center_staff_line_yPos-(Global.STAFF_SPACE_HEIGHT*2)+Global.MEASURE_NUMBER_Y_OFFSET)
+	
 	var measure_index = starting_measure_index
 	for x_offset in x_offsets:
 		var notation_measure = notation_measure_list[measure_index]
@@ -260,7 +336,37 @@ func display_measures_from_index(starting_notation_line_number, staffline_id):
 			var time = point[0]
 			var xPos = point[1] + x_offset 
 			time_xPos_points.append([time, xPos])
-			
+		
+		#draw beams over measures
+		if measure_index > 0:
+			for voice_index in range(2):
+				for beam_id in range(notation_measure.beams_over_prev_measure_count_both_voices[voice_index]):
+					var prev_notation_measure = notation_measure_list[measure_index-1]
+					
+					var prev_stem_notation = prev_notation_measure.get_last_stem_notation()
+					var current_stem_notation = notation_measure.get_first_stem_notation()
+					var prev_stem_node = prev_stem_notation.get_child_node()
+					var current_stem_node = current_stem_notation.get_child_node()
+					
+					if measure_index == starting_measure_index:
+						var beam1_xMin = prev_stem_notation.xMin+prev_notation_measure.position.x
+						var beam1_xMax = prev_notation_measure.get_measure_line_notation().xMax+prev_notation_measure.position.x
+						var beam1_x_size = beam1_xMax - beam1_xMin
+						var stem1_yPos = prev_stem_notation.yMin+prev_notation_measure.position.y
+						add_beam_node(notation_display, beam1_xMin, beam1_x_size, stem1_yPos, beam_id, voice_index, true)
+						
+						var beam2_x_size = Global.START_OF_MEASURE_DRAW_DISTANCE
+						var beam2_xMin = current_stem_notation.xMin+notation_measure.position.x - beam2_x_size
+						var stem2_yPos = current_stem_notation.yMin+notation_measure.position.y
+						add_beam_node(notation_display, beam2_xMin, beam2_x_size, stem2_yPos, beam_id, voice_index, true)
+					
+					else:
+						var beam_xMin = prev_stem_notation.xMin+prev_notation_measure.position.x
+						var beam_xMax = current_stem_notation.xMin+notation_measure.position.x
+						var beam_x_size = beam_xMax - beam_xMin
+						var stem_yPos = prev_stem_notation.yMin+notation_measure.position.y
+						add_beam_node(notation_display, beam_xMin, beam_x_size, stem_yPos, beam_id, voice_index, true)
+						
 		measure_index += 1
 	
 	#staff lines
@@ -270,45 +376,54 @@ func display_measures_from_index(starting_notation_line_number, staffline_id):
 		line_x_max = last_notation_measure.position.x + last_notation_measure.size_x
 	else:
 		line_x_max = staffline_x_max
-	
-	draw_staff_line_body(staffline_x_min, line_x_max, center_staff_line_yPos, "clef_percussion")
+	draw_staff_line_body(staffline_x_min, line_x_max, center_staff_line_yPos)
 	
 	var next_starting_measure_index
 	if !ended_last_measure and !is_panorama:
 		next_starting_measure_index = starting_measure_index + x_offsets.size()
 	return next_starting_measure_index
+
+func add_beam_node(stem_node, beam_xMin, beam_x_size, stem_yPos, beam_id, voice_index, over_measure):
+	var yOffset = beam_id*(Global.BEAM_YSIZE+Global.BEAM_YSPACING)
+	var beam_yMin
+	if voice_index == 2:
+		beam_yMin = stem_yPos - yOffset - Global.BEAM_YSIZE
+	else:
+		beam_yMin = stem_yPos + yOffset
+		
+	var beam_node = ColorRect.new()
+	beam_node.color = Color(0, 0, 0)
+	beam_node.position = Vector2(beam_xMin, beam_yMin)
+	beam_node.size = Vector2(beam_x_size, Global.BEAM_YSIZE)
+	stem_node.add_child(beam_node)
 		
 func add_beam_type(current_notation, prev_notation, beam_int_type, voice_index):
 	var current_stem_node = current_notation.get_child_node()
 	var prev_stem_node = prev_notation.get_child_node()
 	var beam_integers = current_notation.beam_integers
 	var num_beams = beam_integers.count(beam_int_type)
-	
-	for beam_id in range(num_beams):
-		var stem_yPos = stem_yPos_both_voices[voice_index-1]
-		var yOffset = beam_id*(Global.BEAM_YSIZE+Global.BEAM_YSPACING)
-		var beam_yMin
-		if voice_index == 2:
-			beam_yMin = stem_yPos - yOffset - Global.BEAM_YSIZE
-		else:
-			beam_yMin = stem_yPos + yOffset
-		
+
+	for beam_id in range(num_beams):	
 		var beam_x_size
 		var beam_xMin
+		
+		var beam_over_measure = false
 		if beam_int_type == 0: #full
 			beam_x_size = current_notation.xMin - prev_notation.xMin
 			beam_xMin = prev_notation.xMin
+			if beam_x_size < 0:
+				beam_over_measure = true
+				var notation_measure = current_notation.get_parent()
+				notation_measure.beams_over_prev_measure_count_both_voices[voice_index-1] += 1
 		if beam_int_type == 1: #stub right
 			beam_x_size = Global.BEAM_XSTUB
 			beam_xMin = prev_notation.xMin
 		if beam_int_type == 2: #stub left
 			beam_x_size = Global.BEAM_XSTUB
-			beam_xMin = current_notation.xMin - beam_x_size	
-		var beam_node = ColorRect.new()
-		beam_node.color = Color(0, 0, 0)
-		beam_node.position = Vector2(beam_xMin, beam_yMin)
-		beam_node.size = Vector2(beam_x_size, Global.BEAM_YSIZE)
-		prev_stem_node.add_child(beam_node)
+			beam_xMin = current_notation.xMin - beam_x_size
+			
+		if !beam_over_measure:
+			add_beam_node(prev_stem_node, beam_xMin, beam_x_size, stem_yPos_both_voices[voice_index-1], beam_id, voice_index, false)
 		
 func add_beam_nodes(stem_notation_nodes_both_voices, voice_index):
 	var stem_notation_nodes = stem_notation_nodes_both_voices[voice_index-1]
@@ -331,6 +446,7 @@ func populate_notations():
 	
 	for measure_data in song.notation_data:
 		var notation_measure = NOTATION_MEASURE_SCENE.instantiate()
+		notation_measure.measure_index = notation_measure_list.size()
 		notation_measure_list.append(notation_measure)
 		
 		var time_sig_notations = []
@@ -365,7 +481,7 @@ func populate_notations():
 				
 				var node
 				
-				if category == "sprite" or category == "notehead" or category == "measureline" or category == "timesig" or category == "wholerest" or category == "multirest_number":
+				if category == "sprite" or category == "notehead" or category == "measure_line" or category == "timesig" or category == "wholerest" or category == "multirest_number":
 					node = Sprite2D.new()
 					current_notation.node_type = "Sprite2D"
 					var file_path = Global.NOTATIONS_PATH + file_name + ".png"
@@ -374,23 +490,16 @@ func populate_notations():
 					node.centered = false
 					Utils.set_sprite_position_and_scale(node, 0, 0, xMax-xMin, yMax-yMin)
 					
-					#var desired_width = xMax - xMin
-					#var desired_height = yMax - yMin
-#
-					#var tex_width = node.texture.get_width()
-					#var tex_height = node.texture.get_height()
-					#
-					#node.centered = false
-					#node.scale = Vector2(desired_width / tex_width, desired_height / tex_height)
-				#
 					if category == "notehead":
-						current_notation.midi_id = misc
+						var note_str = str(misc)
+						current_notation.voice_index = int(note_str.substr(0, 1))
+						current_notation.midi_id = int(note_str.substr(1))
 						node.z_index = 1
 						noteheads.append(current_notation)
 					if category == "timesig":
 						time_sig_notations.append(current_notation)
 						
-				elif category == "line" or category == "stem" or category == "multirest_line":
+				elif category == "line" or category == "stem" or category == "multirest_line" or category == "tuplet_line":
 					node = Line2D.new()
 					current_notation.node_type = "Line2D"
 					node.default_color = Color(0, 0, 0)
@@ -407,25 +516,16 @@ func populate_notations():
 					node = ColorRect.new()
 					current_notation.node_type = "ColorRect"
 				elif category == "measure_number":
-					node = Label.new()
+					var measure_number_text = str(file_name)
+					node = create_measure_number_node(measure_number_text)
 					current_notation.node_type = "Label"
-					var number_text = str(file_name)
-					node.text = number_text
-					node.z_index = 1
-					
-					var label_settings = LabelSettings.new()
-					var font = SystemFont.new()
-					font.font_names = ["Verdana"]
-					label_settings.font = font
-					label_settings.font_size = 14
-					label_settings.font_color = Color(0, 0, 0)
-					node.set_label_settings(label_settings)
+					notation_measure.measure_number_text = measure_number_text
 				else:
 					assert(false, "Expected notation category node not found! " + category)
 				
 				current_notation.add_child(node)
 
-				if (category == "measureline" and file_name != "measure_end") or category == "wholerest" or category.begins_with("multirest"):
+				if (category == "measure_line" and file_name != "measure_end") or category == "wholerest" or category.begins_with("multirest"):
 					prev_notation_measure.add_child(current_notation)
 				else:
 					notation_measure.add_child(current_notation)
@@ -480,52 +580,114 @@ func populate_notations():
 	add_beam_nodes(stem_notation_nodes_both_voices, 1)
 	add_beam_nodes(stem_notation_nodes_both_voices, 2)
 	
-func get_current_notation_xPos():
+func get_current_notation_seek_xPos():
 	if time_xPos_points == null:
-		return
+		return [null, null]
 	var index = Utils.binary_search_closest_or_less(time_xPos_points, song.current_song_time, 0)
 	if index < 0 or index >= time_xPos_points.size()-1:
-		return
+		return [null, null]
 	var current_time_point = time_xPos_points[index]
 	var next_time_point = time_xPos_points[index+1]
-	return Utils.convert_range(song.current_song_time, current_time_point[0], next_time_point[0], current_time_point[1], next_time_point[1])
+	
+	var current_time = current_time_point[0]
+	var next_time = next_time_point[0]
+	var current_xPos = current_time_point[1]
+	var next_xPos = next_time_point[1]
+	
+	var xPos
+	var is_next_line = false
+	if next_xPos < current_xPos:
+		var current_line_x_distance = staffline_x_max - current_xPos
+		var next_line_x_distance = Global.START_OF_MEASURE_DRAW_DISTANCE
+		var total_x_distance = float(current_line_x_distance + next_line_x_distance)
+		var percentage_through_total_distance = Utils.convert_range(song.current_song_time, current_time, next_time, 0.0, 1.0)
+		var percentage_current_line_distance = current_line_x_distance/total_x_distance
+		var percentage_next_line_distance = 1.0 - percentage_current_line_distance
+		if percentage_through_total_distance < percentage_current_line_distance:
+			xPos = Utils.convert_range(percentage_through_total_distance, 0.0, percentage_current_line_distance, current_xPos, staffline_x_max)
+		else:
+			xPos = Utils.convert_range(percentage_through_total_distance-percentage_current_line_distance, 0.0, percentage_next_line_distance, next_xPos-next_line_x_distance, next_xPos)
+			is_next_line = true
+	else:
+		xPos = Utils.convert_range(song.current_song_time, current_time, next_time, current_xPos, next_xPos)
+	
+	return [xPos, is_next_line]
 
-func get_current_line_number(force_valid):
+func get_current_line_number_and_percentage_to_next_line(force_valid):
 	var line_number = Utils.binary_search_closest_or_less(notation_lines, song.current_song_time, 0)
+	
+	var percentage_to_next_line
+	if line_number == -1 or line_number == notation_lines.size()-1:
+		percentage_to_next_line = 0
+	else:
+		var current_measure_index = notation_lines[line_number][1]
+		var next_measure_index = notation_lines[line_number+1][1]
+		var current_line_start_time = notation_measure_list[current_measure_index].time_xPos_points[0][0]
+		var next_line_start_time = notation_measure_list[next_measure_index].time_xPos_points[0][0]
+		percentage_to_next_line = Utils.convert_range(song.current_song_time, current_line_start_time, next_line_start_time, 0.0, 1.0)
 	
 	if force_valid:
 		line_number = max(line_number, 0)
 		line_number = min(line_number, notation_lines.size()-1)
 		
-	return line_number
+	return [line_number, percentage_to_next_line]
 
 func update_contents():
 	#update page
-	var current_line_number = get_current_line_number(true)
+	var get_current_line_number_and_percentage_to_next_line = get_current_line_number_and_percentage_to_next_line(true)
+	var current_line_number = get_current_line_number_and_percentage_to_next_line[0]
+	var percentage_to_next_line = get_current_line_number_and_percentage_to_next_line[1]
+	
 	if current_line_number != prev_line_number:
 		for child in notation_display.get_children():
 			notation_display.remove_child(child)
-		for child in staff_body.get_children():
-			child.queue_free()
 		
 		time_xPos_points = []
-		for staffline_id in range(Global.NUM_NOTATION_ROWS):
-			display_measures_from_index(current_line_number, staffline_id)
-				
+		if is_panorama:
+			display_measures_from_index(current_line_number, 0)
+		else:
+			for staffline_id in range(Global.NUM_NOTATION_ROWS+2):
+				display_measures_from_index(current_line_number-2, staffline_id)
+	
 	prev_line_number = current_line_number
 	
 	# Update seek line
 	seek_line.clear_points()
-	var seek_x = get_current_notation_xPos()
+	var notation_xPos_data = get_current_notation_seek_xPos()
+	var seek_x = notation_xPos_data[0]
+	var is_next_line = notation_xPos_data[1]
 	if seek_x:
-		seek_line.add_point(Vector2(seek_x, y_min))
-		seek_line.add_point(Vector2(seek_x, y_min + Global.NOTATION_YSIZE))
+		var seek_yMin
+		var seek_yMax
+		if is_panorama:
+			seek_yMin = y_min + Global.STAFF_SPACE_HEIGHT
+			seek_yMax = y_max - Global.STAFF_SPACE_HEIGHT
+		else:
+			var line_num = 2
+			if is_next_line:
+				line_num += 1
+				
+			var seek_yCenter = get_center_staff_line_yPos(line_num)
+			seek_yMin = seek_yCenter - Global.STAFF_SPACE_HEIGHT*9
+			seek_yMax = seek_yCenter + Global.STAFF_SPACE_HEIGHT*6
+		seek_line.add_point(Vector2(seek_x, seek_yMin))
+		seek_line.add_point(Vector2(seek_x, seek_yMax))
+	
+	if !is_panorama:
+		var y_animated_offset = int(Utils.convert_range(percentage_to_next_line, 0, 1, 0, -Global.NOTATION_YSIZE))
+		notation_display.position.y = y_animated_offset
+		seek_line.position.y = y_animated_offset
 		
 func draw_background():
 	background.modulate.a = 0.93
 	background.position = Vector2(x_min, y_min)
 	background.size = Vector2(x_size, y_size)
-	#Utils.set_sprite_position_and_scale(background, x_min, y_min, x_max, y_max)
+	
+	background.material.set_shader_parameter("edge_fade_1", EDGE_FADE_1)
+	background.material.set_shader_parameter("edge_fade_2", EDGE_FADE_2)
+	background.material.set_shader_parameter("bounds_min", Vector2(0, 0))
+	background.material.set_shader_parameter("bounds_max", Vector2(x_size, y_size))
+	background.material.set_shader_parameter("custom_bounds", false)
 	
 	const SPIRAL_X_RADIUS = 20
 	const SPIRAL_Y_SIZE = 20
@@ -539,15 +701,11 @@ func draw_background():
 		spiral_xPos = SPIRAL_X_RADIUS*0.5
 
 	for i in range(num_steps):
-		#print(i)
 		var spiral = Sprite2D.new()
 		spiral.texture = load("res://textures/spiral.png")
 		background.add_child(spiral)
 		
-		var spiral_yPos = y_size*(i/float(num_steps)) + SPIRAL_Y_SIZE*0.75
-
-		print(spiral_yPos)
 		spiral.centered = false
+		var spiral_yPos = y_size*(i/float(num_steps)) + SPIRAL_Y_SIZE*0.75
 		Utils.set_sprite_position_and_scale(spiral, spiral_xPos-SPIRAL_X_RADIUS, spiral_yPos, spiral_xPos+SPIRAL_X_RADIUS, spiral_yPos+SPIRAL_Y_SIZE)
-		print("SPIRAL: " + str(spiral.position) + " " + str(spiral.scale))
 		

@@ -119,9 +119,7 @@ func _ready():
 	
 	MidiInputManager.pad_send.connect(_on_pad_received)
 	
-	#TODO: test
 	contents_display.texture = contents_sub_viewport.get_texture()
-	contents_display.position = Vector2.ZERO
 		
 func update_contents(current_time):
 	visible_time_min = current_time

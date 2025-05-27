@@ -6,6 +6,8 @@ var xMin : float #need these coordinates for all types because of paging
 var yMin : float
 var xMax : float
 var yMax : float
+var xCenter : float
+var yCenter: float
 var midi_id: int
 var color_r: float
 var color_g: float
