@@ -20,7 +20,6 @@ var beatline_data: Array = []
 var hihatpedal_data: Array = []
 var sustain_data: Array = []
 var notation_data: Array = []
-var staffline_data: Array = []
 #other gameDataTables; don't forget to clear() the data
 
 var current_song_time = 0.0
@@ -146,15 +145,15 @@ func load_song(song_path):
 	staff = Staff.create(true, is_panorama, staff_x_min, staff_y_min, staff_x_size, staff_y_size)
 	add_child(staff)
 	
+	if song_path != Global.current_song_path:
+		Global.current_song_path = song_path
+		set_audio_players_to_song()
+		
 	var audio_bar_x_size = 1300
 	var audio_bar_x_min = x_center - (audio_bar_x_size*0.5)
 
 	audio_bar = AudioBar.create(song_audio_player, audio_bar_x_min, 30, audio_bar_x_size, 60)
 	add_child(audio_bar)
-
-	if song_path != Global.current_song_path:
-		Global.current_song_path = song_path
-		set_audio_players_to_song()
 	
 	link_notes_between_highway_and_staff()
 	
@@ -177,9 +176,9 @@ func link_notes_between_highway_and_staff():
 		var index = Utils.binary_search_exact(midi_ids, notation.midi_id, -1)
 		var note = notes[index]
 		note.linked_notations.append(notation)
-		notation.color_r = note.color_r
-		notation.color_g = note.color_g
-		notation.color_b = note.color_b
+		notation.color_r = note.notation_color_r
+		notation.color_g = note.notation_color_g
+		notation.color_b = note.notation_color_b
 		var notation_sprite = notation.get_child_node()
 		var shader_material = ShaderMaterial.new()
 		shader_material.shader = color_replace_shader
@@ -257,10 +256,8 @@ func process_sustain_data(values):
 
 func process_notation_data(values):
 	notation_data[notation_data.size()-1].append(values)
-
+	
 func reset_chart_data():
-	staffline_data.clear()
-
 	note_data.clear()
 	beatline_data.clear()
 	hihatpedal_data.clear()

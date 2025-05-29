@@ -11,6 +11,9 @@ var color_r : float
 var color_g : float
 var color_b : float
 var color_a : float
+var notation_color_r : float
+var notation_color_g : float
+var notation_color_b : float
 var midi_id : int
 var note_index : int
 var pad_index : int
@@ -43,7 +46,7 @@ const lighting_frame_file_name = "lighting_frames.txt"
 const NOTE_SCENE: PackedScene = preload("res://scenes/note.tscn")
 
 static func create(time: float, gem: String, normalized_position: float, velocity: int, pedal_val: int,
-	color_r: float, color_g: float, color_b: float, color_a: float,
+	color_r: float, color_g: float, color_b: float, color_a: float, notation_color_r: float, notation_color_g: float, notation_color_b: float,
 	midi_id: int, note_index: int, pad_index: int,
 	positioning_shift_x: float, positioning_shift_y: float, positioning_scale: float, blend_tint: int, blend_lighting: int,
 	z_order,
@@ -61,6 +64,9 @@ static func create(time: float, gem: String, normalized_position: float, velocit
 	instance.color_g = color_g
 	instance.color_b = color_b
 	instance.color_a = color_a
+	instance.notation_color_r = notation_color_r
+	instance.notation_color_g = notation_color_g
+	instance.notation_color_b = notation_color_b
 	
 	instance.midi_id = midi_id
 	instance.note_index = note_index

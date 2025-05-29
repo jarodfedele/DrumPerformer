@@ -15,6 +15,7 @@ var color_b: float
 var voice_index : int
 var beam_integers : Array
 var node_type: String
+var hairpin_type : String
 
 func get_child_node():
 	var children = get_children()

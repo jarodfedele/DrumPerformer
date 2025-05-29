@@ -31,6 +31,7 @@ expand_mode = 1
 
 [node name="ContentsSubViewport" type="SubViewport" parent="."]
 transparent_bg = true
+msaa_2d = 3
 size = Vector2i(1920, 1080)
 render_target_update_mode = 4
 

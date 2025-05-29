@@ -10,6 +10,9 @@ var measure_index: int
 var measure_number_text: String
 var beams_over_prev_measure_count_both_voices = [0, 0]
 
+func get_measure_time():
+	return time_xPos_points[0][0]
+	
 func get_first_stem_notation():
 	for notation in get_children():
 		if notation.category == "stem":
@@ -67,12 +70,12 @@ func set_notation_positions():
 				child_node.size = Vector2(xSize, ySize)
 				child_node.position = Vector2(xMin, yMin)
 			elif child_node is Label:
-				#if notation.category == "measure_line":
-				var font = child_node.get_theme_font("font")
-				var text_width = font.get_string_size(child_node.text).x
-				child_node.position = Vector2(xCenter-text_width*0.5, yMin+Global.MEASURE_NUMBER_Y_OFFSET)
-				#else:
-					#child_node.position = Vector2(xMin, yMin)
+				if notation.category == "measure_line":
+					var font = child_node.get_theme_font("font")
+					var text_width = font.get_string_size(child_node.text).x
+					child_node.position = Vector2(xCenter-text_width*0.5, yMin+Global.MEASURE_NUMBER_Y_OFFSET)
+				else:
+					child_node.position = Vector2(xMin, yMin)
 			else:
 				assert(false, "Expected notation category node not found! " + category)
 		

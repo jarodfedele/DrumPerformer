@@ -49,7 +49,7 @@ func run(highway):
 	run_compiler.invoke(Global.current_gamedata, drumkit_data, gem_name_table, config_text_table, globalized_file_path)
 
 	const NUM_CONSTANTS = 1
-	const NUM_ARRAYS = 16
+	const NUM_ARRAYS = 19
 	var num_lanes
 	
 	var time_list = []
@@ -60,6 +60,9 @@ func run(highway):
 	var color_g_list = []
 	var color_b_list = []
 	var color_a_list = []
+	var notation_color_r_list = []
+	var notation_color_g_list = []
+	var notation_color_b_list = []
 	var shift_x_list = []
 	var shift_y_list = []
 	var scale_list = []
@@ -100,20 +103,26 @@ func run(highway):
 				if array_id == 7:
 					arr = color_a_list
 				if array_id == 8:
-					arr = shift_x_list
+					arr = notation_color_r_list
 				if array_id == 9:
-					arr = shift_y_list
+					arr = notation_color_g_list
 				if array_id == 10:
-					arr = scale_list
+					arr = notation_color_b_list
 				if array_id == 11:
-					arr = z_index_list
+					arr = shift_x_list
 				if array_id == 12:
-					arr = pad_index_list
+					arr = shift_y_list
 				if array_id == 13:
-					arr = sustain_line_list
+					arr = scale_list
 				if array_id == 14:
-					arr = pedal_list
+					arr = z_index_list
 				if array_id == 15:
+					arr = pad_index_list
+				if array_id == 16:
+					arr = sustain_line_list
+				if array_id == 17:
+					arr = pedal_list
+				if array_id == 18:
 					arr = midi_id_list
 				#ATTENTION: if adding new array, update NUM_ARRAYS!
 				

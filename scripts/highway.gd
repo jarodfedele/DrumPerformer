@@ -498,9 +498,12 @@ func add_note_to_highway(time, gem, normalized_position, pad_index, velocity, pe
 	var color_g = Global.get_gem_config_setting(gem, "color_g", null)
 	var color_b = Global.get_gem_config_setting(gem, "color_b", null)
 	var color_a = Global.get_gem_config_setting(gem, "color_a", null)
+	var notation_color_r = Global.get_gem_config_setting(gem, "notation_color_r", color_r)
+	var notation_color_g = Global.get_gem_config_setting(gem, "notation_color_g", color_g)
+	var notation_color_b = Global.get_gem_config_setting(gem, "notation_color_b", color_b)
 	
 	var note = Note.create(time, gem, normalized_position, velocity, pedal_val,
-	color_r, color_g, color_b, color_a,
+	color_r, color_g, color_b, color_a, notation_color_r, notation_color_g, notation_color_b,
 	midi_id, note_index, pad_index,
 	positioning_shift_x, positioning_shift_y, positioning_scale, blend_tint, blend_lighting, z_order,
 	self)

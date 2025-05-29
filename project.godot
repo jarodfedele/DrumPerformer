@@ -29,10 +29,10 @@ MidiInputManager="*res://scripts/midi_input_manager.gd"
 window/size/viewport_width=1920
 window/size/viewport_height=1080
 window/size/mode=3
-window/dpi/allow_hidpi=false
+window/size/resizable=false
+window/stretch/mode="canvas_items"
 
 [rendering]
 
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
-anti_aliasing/quality/msaa_2d=1
 anti_aliasing/quality/msaa_3d=1

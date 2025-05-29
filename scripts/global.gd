@@ -18,8 +18,9 @@ const BEAM_YSIZE = STAFF_SPACE_HEIGHT*0.45
 const BEAM_YSPACING = (STAFF_SPACE_HEIGHT*2 - BEAM_YSIZE*3)/2
 const BEAM_XSTUB = BEAM_YSIZE*2.5
 const TIME_SIG_X_PADDING = Global.STAFF_SPACE_HEIGHT*0.7
-const MEASURE_NUMBER_Y_OFFSET = -Global.STAFF_SPACE_HEIGHT*2
+const MEASURE_NUMBER_Y_OFFSET = -Global.STAFF_SPACE_HEIGHT*2.125
 const START_OF_MEASURE_DRAW_DISTANCE = Global.STAFF_SPACE_HEIGHT*2.5
+const HAIRPIN_YSIZE = Global.STAFF_SPACE_HEIGHT*2
 
 const NOTATION_YSIZE = STAFF_SPACE_HEIGHT * 22
 const NUM_NOTATION_ROWS = 4
@@ -44,6 +45,13 @@ var GEMS_PATH = ORIGINAL_GEMS_PATH
 var DEBUG_GEMS = false
 const NOTATIONS_PATH = "res://assets/notations/"
 const CLEF_PATH = NOTATIONS_PATH + "clef_percussion.png"
+
+const FONTS_PATH = "res://fonts/"
+const FONT_ACADEMICO_PATH = FONTS_PATH + "Academico/"
+const FONT_ACADEMICO_BOLD = preload(FONT_ACADEMICO_PATH + "AcademicoBold.otf")
+const FONT_ACADEMICO_BOLD_ITALIC = preload(FONT_ACADEMICO_PATH + "AcademicoBoldItalic.otf")
+const FONT_ACADEMICO_ITALIC = preload(FONT_ACADEMICO_PATH + "AcademicoItalic.otf")
+const FONT_ACADEMICO_REGULAR = preload(FONT_ACADEMICO_PATH + "AcademicoRegular.otf")
 
 var current_profile
 
@@ -347,6 +355,9 @@ static func store_gem_textures_in_list():
 			var color_g
 			var color_b
 			var color_a
+			var notation_color_r
+			var notation_color_g
+			var notation_color_b
 			
 			var lines = config_text.split("\n")
 			for line in lines:
@@ -374,13 +385,19 @@ static func store_gem_textures_in_list():
 						color_b = float(val)
 					if header == "color_a":
 						color_a = float(val)
+					if header == "notation_color_r":
+						notation_color_r = float(val)
+					if header == "notation_color_g":
+						notation_color_g = float(val)
+					if header == "notation_color_b":
+						notation_color_b = float(val)
 						
 			Global.gem_texture_list.append([
 				gem, tex_tint, tex_tint_colored, tex_base, tex_ring,
 				positioning_shift_x, positioning_shift_y, positioning_scale,
 				blend_tint, blend_lighting,
 				z_order,
-				color_r, color_g, color_b, color_a
+				color_r, color_g, color_b, color_a, notation_color_r, notation_color_g, notation_color_b
 				])
 
 		name = dir.get_next()
@@ -426,6 +443,12 @@ static func get_gem_config_setting(gem, header, default_val):
 		index = 13
 	if header == "color_a":
 		index = 14
+	if header == "notation_color_r":
+		index = 15
+	if header == "notation_color_g":
+		index = 16
+	if header == "notation_color_b":
+		index = 17
 	
 	var result = gem_data[index]
 	if result == null:

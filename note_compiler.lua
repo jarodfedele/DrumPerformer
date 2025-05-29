@@ -580,6 +580,25 @@ function runCompiler(gamedataFileText, drumkitFileText, gemNameTable, configText
 	  insertInMasterList(color_g)
 	  insertInMasterList(color_b)
 	  insertInMasterList(color_a)
+	  
+      local notation_color_r = getGemConfigProperty(gem, "notation_color_r")
+	  if not notation_color_r then
+		notation_color_r = color_r
+		end
+	  notation_color_r = notation_color_r * 255
+      local notation_color_g = getGemConfigProperty(gem, "notation_color_g")
+	  if not notation_color_g then
+		notation_color_g = color_g
+		end
+	  notation_color_g = notation_color_g * 255
+      local notation_color_b = getGemConfigProperty(gem, "notation_color_b")
+	  if not notation_color_b then
+		notation_color_b = color_b
+		end
+	  notation_color_b = notation_color_b * 255
+	  insertInMasterList(notation_color_r, color_r)
+	  insertInMasterList(notation_color_g, color_g)
+	  insertInMasterList(notation_color_b, color_b)
       
 	  insertInMasterList(getGemConfigProperty(gem, "shiftx"), 0)
 	  insertInMasterList(getGemConfigProperty(gem, "shifty"), 0)
