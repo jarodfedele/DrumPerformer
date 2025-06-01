@@ -114,8 +114,6 @@ func _ready():
 		panorama_clef.centered = false
 		panorama_clef.position = Vector2(clef_xMin, default_center_staff_line_yPos-Global.STAFF_SPACE_HEIGHT+y_min)
 		panorama_clef.scale = clef_scale
-		print(panorama_clef.position)
-		print(panorama_clef.scale)
 	
 	var bound_xMin
 	if is_panorama:
@@ -158,7 +156,6 @@ func _ready():
 		
 		display_measures_from_index(0, 0)
 	else:
-		print(notation_page_starting_time_pos_list.size())
 		var initial_y_offset = get_line_yMin(0) + (y_size*0.5)
 		for notation_line_number in range(notation_lines.size()):
 			var line_yMin = get_line_yMin(notation_line_number)
@@ -236,15 +233,14 @@ func get_consecutive_measure_x_offsets(starting_measure_index) -> Array:
 		x_offset += notation_measure.size_x
 		var current_x_boundary_max = x_offset
 		
-		var recent_panorama_x_position
 		if is_panorama:
-			recent_panorama_x_position = notation_page_starting_time_pos_list[notation_page_starting_time_pos_list.size()-1][1]
-		if is_panorama and x_offset-recent_panorama_x_position > staffline_x_max and measure_index > 0:
-			var time = notation_measure.time_xPos_points[0][0]
-			var prev_measure = notation_measure_list[measure_index-1]
-			var prev_x_offset = x_offsets[x_offsets.size()-2] + prev_measure.size_x
-			notation_page_starting_time_pos_list.append([time, prev_x_offset, notation_measure])
-			
+			var recent_panorama_x_position = notation_page_starting_time_pos_list[notation_page_starting_time_pos_list.size()-1][1]
+			if x_offset-recent_panorama_x_position+x_min > staffline_x_max*0.95 and measure_index > 0:
+				var time = notation_measure.time_xPos_points[0][0]
+				var prev_measure = notation_measure_list[measure_index-1]
+				var prev_x_offset = x_offsets[x_offsets.size()-2] + prev_measure.size_x
+				notation_page_starting_time_pos_list.append([time, prev_x_offset, notation_measure])
+				
 		if x_offset > staffline_x_max and !is_panorama:
 			if !is_panorama:
 				var line_x_size = current_x_boundary_max - boundary_x_min
@@ -326,8 +322,7 @@ func get_consecutive_measure_x_offsets(starting_measure_index) -> Array:
 		
 		prev_x_boundary_max = current_x_boundary_max
 		measure_index += 1
-	
-	print(notation_page_starting_time_pos_list)
+
 	return [x_offsets, ended_last_measure]
 
 func get_index_in_line(notation_measure):
@@ -465,51 +460,6 @@ func get_measure_from_time(time): #TODO: binary search optimization
 		if time >= notation_measure.get_measure_time():
 			return notation_measure
 		
-func populate_dynamics():
-	for dynamic_data in song.dynamic_data:
-		var type = dynamic_data[0]
-		var start_time = dynamic_data[1]
-		var notation_measure_start = get_measure_from_time(start_time)
-		
-		var line_number_and_percentage_to_next_line_start = get_line_number_and_percentage_to_next_line(start_time, true)
-		var line_number_start = line_number_and_percentage_to_next_line_start[0]
-		var percentage_to_next_line_start = line_number_and_percentage_to_next_line_start[1]
-		
-		if type == "crescendo" or type == "diminuendo" or type == "decrescendo":
-			var end_time = dynamic_data[2]
-			var notation_measure_end = get_measure_from_time(end_time)
-			
-			var line_number_and_percentage_to_next_line_end = get_line_number_and_percentage_to_next_line(end_time, true)
-			var line_number_end = line_number_and_percentage_to_next_line_end[0]
-			var percentage_to_next_line_end = line_number_and_percentage_to_next_line_end[1]
-		else:
-			var xMin = dynamic_data[2]
-			var yMin = dynamic_data[3]
-			var xMax = dynamic_data[4]
-			var yMax = dynamic_data[5]
-			var xSize = xMax - xMin
-			var ySize = yMax - yMin
-			
-			var dynamic = DYNAMIC_SCENE.instantiate()
-			dynamic.type = type
-			dynamic.start_time = start_time
-			dynamic.line_number = line_number_start
-			
-			var index = Utils.binary_search_closest_or_less(notation_measure_start.time_xPos_points, start_time, 0)
-			if index < 0 or index >= notation_measure_start.time_xPos_points.size()-1:
-				assert(false, "Bad dynamic position! " + str(start_time))
-			
-			var xPos = notation_measure_start.time_xPos_points[index][1]
-			var yCenter = default_center_staff_line_yPos + Global.STAFF_SPACE_HEIGHT*4
-			var node = Sprite2D.new()
-			var file_path = Global.NOTATIONS_PATH + dynamic.type + ".png"
-			node.texture = load(file_path)
-			node.centered = false
-			
-			Utils.set_sprite_position_and_scale(node, xPos, yCenter-ySize*0.5, xSize, ySize)
-	
-	#TODO: go through each line and check if yMin <= any notation yMax
-			
 func draw_staff_line_body(line_x_min, line_x_max, center_staff_line_yPos):
 	#staff lines
 	for i in range(5):
@@ -613,19 +563,19 @@ func display_measures_from_index(starting_notation_line_number, staffline_id):
 						var beam1_xMax = staffline_x_max
 						var beam1_x_size = beam1_xMax - beam1_xMin
 						var stem1_yPos = prev_stem_notation.yMin+prev_notation_measure.position.y
-						add_beam_node(notation_display, beam1_xMin, beam1_x_size, stem1_yPos, beam_id, voice_index, true)
+						add_beam_node(prev_notation_measure, beam1_xMin, beam1_x_size, stem1_yPos, beam_id, voice_index, true)
 						
 						var beam2_x_size = Global.START_OF_MEASURE_DRAW_DISTANCE
 						var beam2_xMin = current_stem_notation.xMin+notation_measure.position.x - beam2_x_size
 						var stem2_yPos = current_stem_notation.yMin+notation_measure.position.y
-						add_beam_node(notation_display, beam2_xMin, beam2_x_size, stem2_yPos, beam_id, voice_index, true)
+						add_beam_node(notation_measure, beam2_xMin, beam2_x_size, stem2_yPos, beam_id, voice_index, true)
 					
 					else:
 						var beam_xMin = prev_stem_notation.xMin+prev_notation_measure.position.x
 						var beam_xMax = current_stem_notation.xMin+notation_measure.position.x
 						var beam_x_size = beam_xMax - beam_xMin
 						var stem_yPos = prev_stem_notation.yMin+notation_measure.position.y
-						add_beam_node(notation_display, beam_xMin, beam_x_size, stem_yPos, beam_id, voice_index, true)
+						add_beam_node(prev_notation_measure, beam_xMin, beam_x_size, stem_yPos, beam_id, voice_index, true)
 						
 		measure_index += 1
 
@@ -643,19 +593,27 @@ func display_measures_from_index(starting_notation_line_number, staffline_id):
 		#next_starting_measure_index = starting_measure_index + x_offsets.size()
 	#return next_starting_measure_index
 
-func add_beam_node(stem_node, beam_xMin, beam_x_size, stem_yPos, beam_id, voice_index, over_measure):
+func add_beam_node(parent_node, beam_xMin, beam_x_size, stem_yPos, beam_id, voice_index, over_measure):
 	var yOffset = beam_id*(Global.BEAM_YSIZE+Global.BEAM_YSPACING)
 	var beam_yMin
 	if voice_index == 2:
 		beam_yMin = stem_yPos - yOffset - Global.BEAM_YSIZE
 	else:
 		beam_yMin = stem_yPos + yOffset
-		
+			
 	var beam_node = ColorRect.new()
 	beam_node.color = Color(0, 0, 0)
 	beam_node.position = Vector2(beam_xMin, beam_yMin)
 	beam_node.size = Vector2(beam_x_size, Global.BEAM_YSIZE)
-	stem_node.add_child(beam_node)
+	if over_measure:
+		beam_node.position.x -= parent_node.position.x
+		beam_node.position.y -= parent_node.position.y
+		var notation = NOTATION_SCENE.instantiate()
+		notation.category = "beam"
+		notation.add_child(beam_node)
+		parent_node.add_child(notation)
+	else:
+		parent_node.add_child(beam_node)
 		
 func add_beam_type(current_notation, prev_notation, beam_int_type, voice_index):
 	var current_stem_node = current_notation.get_child_node()
@@ -685,7 +643,7 @@ func add_beam_type(current_notation, prev_notation, beam_int_type, voice_index):
 		if !beam_over_measure:
 			add_beam_node(prev_stem_node, beam_xMin, beam_x_size, stem_yPos_both_voices[voice_index-1], beam_id, voice_index, false)
 		
-func add_beam_nodes(stem_notation_nodes_both_voices, voice_index):
+func add_normal_beam_nodes(stem_notation_nodes_both_voices, voice_index):
 	var stem_notation_nodes = stem_notation_nodes_both_voices[voice_index-1]
 	for i in range(1, stem_notation_nodes.size()):
 		var current_notation = stem_notation_nodes[i]
@@ -981,8 +939,8 @@ func populate_notations():
 		notation_measure.construct(i)
 	
 	#after construct, add beams
-	add_beam_nodes(stem_notation_nodes_both_voices, 1)
-	add_beam_nodes(stem_notation_nodes_both_voices, 2)
+	add_normal_beam_nodes(stem_notation_nodes_both_voices, 1)
+	add_normal_beam_nodes(stem_notation_nodes_both_voices, 2)
 	
 func get_current_notation_seek_xPos():
 	if time_xPos_points == null:
@@ -1055,10 +1013,6 @@ func add_hairpins_to_display():
 	for hairpin_id in range(0, hairpins.size(), 2):
 		var hairpin_start = hairpins[hairpin_id]
 		var hairpin_end = hairpins[hairpin_id+1]
-		for child in hairpin_start.get_children():
-			child.queue_free()
-		for child in hairpin_end.get_children():
-			child.queue_free()
 			
 		var notation_measure_start = hairpin_start.get_parent()
 		var notation_measure_end = hairpin_end.get_parent()
@@ -1128,7 +1082,7 @@ func add_hairpins_to_display():
 			line_top.add_point(Vector2(bound[1], yMin_right))
 			line_top.antialiased = true
 			notation_display.add_child(line_top)
-			hairpin_line_nodes.append([line_top, line_number])
+			hairpin_line_nodes.append([line_top, line_number, measure_index_start, measure_index_end])
 			
 			var line_bottom = Line2D.new()
 			line_bottom.default_color = Color.BLACK
@@ -1141,7 +1095,7 @@ func add_hairpins_to_display():
 	for line_number in range(notation_lines.size()):
 		var notation_line = notation_lines[line_number]
 		
-		var dynamic_notations = []
+		var dynamic_sprite_notations = []
 		var static_notations = []
 		var has_hairpins = false
 		for line_data in hairpin_line_nodes:
@@ -1156,36 +1110,61 @@ func add_hairpins_to_display():
 			for notation in notation_measure.get_children():
 				var category = notation.category
 				if category == "dynamic_sprite":
-					dynamic_notations.append(notation)
+					dynamic_sprite_notations.append(notation)
 				if category == "notehead" or category == "gracenotehead" or category == "rest" or category == "stem" or category == "gracestem" or category == "tuplet_line" or category == "tuplet_number" or category == "articulation":
 					static_notations.append(notation)
-
-		var rects_static = []
-		for notation in static_notations:
-			var rect = Utils.make_rect(notation.xMin, notation.yMin, notation.xMax, notation.yMax)
-			rects_static.append(rect)
 		
 		var dynamic_yMin = default_center_staff_line_yPos + Global.STAFF_SPACE_HEIGHT*3
 		var dynamic_yMax = dynamic_yMin + Global.STAFF_SPACE_HEIGHT*2
 
-		if has_hairpins:
+		if has_hairpins and !is_panorama:
+			var rects_static = []
+			for notation in static_notations:
+				var rect = Utils.make_rect(notation.xMin, notation.yMin, notation.xMax, notation.yMax)
+				rects_static.append(rect)
+			
 			var rect = [Utils.make_rect(-10000, dynamic_yMin, 10000, dynamic_yMax)]
 			var collision_y_offset = get_collision_y_offset(rect, rects_static, false)
-			for notation in dynamic_notations:
+			for notation in dynamic_sprite_notations:
 				notation.position.y = collision_y_offset
 			for line_data in hairpin_line_nodes:
 				var line = line_data[0]
 				if line_data[1] == line_number:
 					line.position.y = collision_y_offset
 		else:
-			for notation in dynamic_notations:
-				var rect = [Utils.make_rect(notation.xMin, dynamic_yMin, notation.xMax, dynamic_yMax)]
-				var collision_y_offset = get_collision_y_offset(rect, rects_static, false)
-				notation.position.y = collision_y_offset
-
-
+			#should be panorama only
+			for line_id in range(0, hairpin_line_nodes.size(), 2):
+				var node_top = hairpin_line_nodes[line_id][0]
+				var node_bottom = hairpin_line_nodes[line_id+1][0]
+				var measure_index_start = hairpin_line_nodes[line_id][2]
+				var measure_index_end = hairpin_line_nodes[line_id][3]
+				
+				if hairpin_line_nodes[line_id][1] == line_number: #should always be the case
+					var rects_static_within_measures = []
+					for static_notation in static_notations:
+						var static_notation_measure_index = static_notation.get_parent().measure_index
+						if static_notation_measure_index >= measure_index_start and static_notation_measure_index <= measure_index_end:
+							var rect = Utils.make_rect(static_notation.xMin, static_notation.yMin, static_notation.xMax, static_notation.yMax)
+							rects_static_within_measures.append(rect)
+						
+					var rect = [Utils.make_rect(-10000, dynamic_yMin, 10000, dynamic_yMax)]
+					var collision_y_offset = get_collision_y_offset(rect, rects_static_within_measures, false)
+					node_top.position.y = collision_y_offset
+					node_bottom.position.y = collision_y_offset
 					
-func add_tie(xMin, xMax, y1, y2):
+			for notation in dynamic_sprite_notations:
+				var measure_index = notation.get_parent().measure_index
+				var rects_static_within_measure = []
+				for static_notation in static_notations:
+					if static_notation.get_parent().measure_index == measure_index:
+						var rect = Utils.make_rect(static_notation.xMin, static_notation.yMin, static_notation.xMax, static_notation.yMax)
+						rects_static_within_measure.append(rect)
+						
+				var rect = [Utils.make_rect(notation.xMin, dynamic_yMin, notation.xMax, dynamic_yMax)]
+				var collision_y_offset = get_collision_y_offset(rect, rects_static_within_measure, false)
+				notation.position.y = collision_y_offset
+				
+func add_tie(xMin, xMax, y1, y2, notation_measure):
 	var xSize = xMax - xMin
 	var y_diff = y2 - y1
 	
@@ -1211,7 +1190,12 @@ func add_tie(xMin, xMax, y1, y2):
 	line.points = PackedVector2Array(points)
 	line.default_color = Color.BLACK
 	line.width = 2
-	notation_display.add_child(line)
+	line.position.x -= notation_measure.position.x
+	line.position.y -= notation_measure.position.y
+	var notation = NOTATION_SCENE.instantiate()
+	notation.category = "tie"
+	notation.add_child(line)
+	notation_measure.add_child(notation)
 						
 func add_ties_to_display():
 	var noteheads_currently_awaiting_ties = []
@@ -1243,7 +1227,7 @@ func add_ties_to_display():
 					else:
 						y1 = notehead_start.yMax + measure_start.position.y + Global.TIE_YGAP
 						y2 = y1 + Global.TIE_HEIGHT
-					add_tie(xMin, xMax, y1, y2)
+					add_tie(xMin, xMax, y1, y2, measure_start)
 				else:
 					var xMin_1 = notehead_start.xMax + measure_start.position.x + Global.TIE_XGAP
 					var xMax_1 = staffline_x_max - Global.TIE_XGAP*2
@@ -1255,7 +1239,7 @@ func add_ties_to_display():
 					else:
 						y1_1 = notehead_start.yMax + measure_start.position.y + Global.TIE_YGAP
 						y2_1 = y1_1 + Global.TIE_HEIGHT
-					add_tie(xMin_1, xMax_1, y1_1, y2_1)
+					add_tie(xMin_1, xMax_1, y1_1, y2_1, measure_start)
 
 					var xMin_2 = clef_xMax+Global.STAFF_SPACE_HEIGHT*1.5 + Global.TIE_XGAP
 					var xMax_2 = notehead_end.xMin + measure_end.position.x - Global.TIE_XGAP*2
@@ -1267,26 +1251,29 @@ func add_ties_to_display():
 					else:
 						y1_2 = notehead_end.yMax + measure_end.position.y + Global.TIE_YGAP
 						y2_2 = y1_2 + Global.TIE_HEIGHT
-					add_tie(xMin_2, xMax_2, y1_2, y2_2)
+					add_tie(xMin_2, xMax_2, y1_2, y2_2, measure_end)
 				break
 		if notehead.has_tie:
 			noteheads_currently_awaiting_ties.append(notehead)
+
+func run_hiding_animation(child_node):
+	var tween = get_tree().create_tween()
+	tween.tween_property(child_node, "modulate:a", 0.08, 1.0)
+
+	#TODO: tween entire viewport shader
+	#tween.tween_method(set_shader_value, 0.0, 1.0, 2); # args are: (method to call / start value / end value / duration of animation)
+	##tween value automatically gets passed into this function
+	#func set_shader_value(value: float):
+		## in my case i'm tweening a shader on a texture rect, but you can use anything with a material on it
+		#$TextureRect.material.set_shader_parameter("your_shader_param", value);
 
 func hide_notation_measure_items(notation_measure):
 	for notation in notation_measure.get_children():
 		var category = notation.category
 		#TODO: beam over measures
-		if category == "stem" or category == "gracestem" or category == "gracebeam" or category == "flag" or category == "graceflag" or category == "graceline" or category == "rest" or category == "articulation" or category == "ghost" or category == "dot" or category == "leger_line" or category == "tuplet_line" or category == "tuplet_number" or category == "roll" or category == "choke":
-			var tween = get_tree().create_tween()
+		if category == "stem" or category == "beam" or category == "tie" or category == "gracestem" or category == "gracebeam" or category == "flag" or category == "graceflag" or category == "graceline" or category == "rest" or category == "articulation" or category == "ghost" or category == "dot" or category == "leger_line" or category == "tuplet_line" or category == "tuplet_number" or category == "roll" or category == "choke":
 			var child_node = notation.get_child_node()
-			tween.tween_property(child_node, "modulate:a", 0.08, 1.0)
-			
-			#TODO: tween entire viewport shader
-			#tween.tween_method(set_shader_value, 0.0, 1.0, 2); # args are: (method to call / start value / end value / duration of animation)
-			##tween value automatically gets passed into this function
-			#func set_shader_value(value: float):
-				## in my case i'm tweening a shader on a texture rect, but you can use anything with a material on it
-				#$TextureRect.material.set_shader_parameter("your_shader_param", value);
+			run_hiding_animation(child_node)
 
 func update_contents():
 	#update page
@@ -1301,7 +1288,7 @@ func update_contents():
 		low_percentage_bound = 0
 		
 	var position_offset = notation_page_starting_time_pos_list[current_line_number][1]
-	if percentage_to_next_line >= low_percentage_bound:
+	if percentage_to_next_line > low_percentage_bound:
 		var next_position_offset = notation_page_starting_time_pos_list[current_line_number+1][1]
 		var animated_offset = Utils.convert_range(percentage_to_next_line, low_percentage_bound, 1, position_offset, next_position_offset)
 		position_offset = animated_offset

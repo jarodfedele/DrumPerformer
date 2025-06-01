@@ -28,8 +28,8 @@ var audio_frame_count = 0
 
 var loaded = false
 
-func update_contents():
-	load_song("res://test_song/")
+#func update_contents():
+	#load_song("res://test_song/")
 
 func sync_song_time(time):
 	audio_play_start_time = time - Global.calibration_seconds
@@ -100,7 +100,7 @@ func get_layout_coordinates(is_panorama):
 	return [highway_x_min, highway_y_min, highway_x_size, highway_y_size,
 		staff_x_min, staff_y_min, staff_x_size, staff_y_size]
 		
-func load_song(song_path):
+func load_song(song_path, is_panorama):
 	for child in get_children():
 		child.queue_free()
 	
@@ -122,8 +122,7 @@ func load_song(song_path):
 	var base_width = viewport_size.x
 	var base_height = viewport_size.y
 	var x_center = base_width*0.5
-	
-	var is_panorama = false
+
 	var layout_coordinates = get_layout_coordinates(is_panorama)
 	
 	var highway_x_min = layout_coordinates[0]
@@ -145,9 +144,8 @@ func load_song(song_path):
 	staff = Staff.create(true, is_panorama, staff_x_min, staff_y_min, staff_x_size, staff_y_size)
 	add_child(staff)
 	
-	if song_path != Global.current_song_path:
-		Global.current_song_path = song_path
-		set_audio_players_to_song()
+	Global.current_song_path = song_path
+	set_audio_players_to_song()
 		
 	var audio_bar_x_size = 1300
 	var audio_bar_x_min = x_center - (audio_bar_x_size*0.5)

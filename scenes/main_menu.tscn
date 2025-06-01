@@ -26,8 +26,14 @@ layout_mode = 2
 text = "Edit Drum Kit..."
 icon = SubResource("ImageTexture_l6cm7")
 
-[node name="LoadSongButton" type="Button" parent="PanelContainer/VBoxContainer"]
+[node name="LoadSongPanoramaButton" type="Button" parent="PanelContainer/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Load Test Song..."
+text = "Load Test Song (Panorama)..."
+icon = SubResource("ImageTexture_l6cm7")
+
+[node name="LoadSongPageButton" type="Button" parent="PanelContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Load Test Song (Page)..."
 icon = SubResource("ImageTexture_l6cm7")

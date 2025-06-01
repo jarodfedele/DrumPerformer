@@ -1,4 +1,4 @@
-extends Node2D
+class_name Notation extends Node2D
 
 var category : String
 var time
