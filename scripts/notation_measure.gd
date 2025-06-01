@@ -9,6 +9,7 @@ var is_new_line
 var measure_index: int
 var measure_number_text: String
 var beams_over_prev_measure_count_both_voices = [0, 0]
+var hairpin_nodes
 
 func get_measure_time():
 	return time_xPos_points[0][0]
@@ -75,7 +76,7 @@ func set_notation_positions():
 					var text_width = font.get_string_size(child_node.text).x
 					child_node.position = Vector2(xCenter-text_width*0.5, yMin+Global.MEASURE_NUMBER_Y_OFFSET)
 				else:
-					child_node.position = Vector2(xMin, yMin)
+					child_node.position += Vector2(xMin, yMin)
 			else:
 				assert(false, "Expected notation category node not found! " + category)
 		
@@ -87,7 +88,7 @@ func construct(test_index):
 	var xMax
 	for notation in get_children():
 		#get xMin and xMax of entire measure
-		if notation.xMin != null and !(notation.node_type == "Label"):
+		if notation.xMin != null and !(notation.node_type == "Label") and notation.category != "staff_text" and notation.category != "tempo":
 			if xMin == null:
 				xMin = notation.xMin
 			else:

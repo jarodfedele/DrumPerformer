@@ -289,4 +289,7 @@ static func set_sprite_position_and_scale(sprite: Sprite2D, xMin, yMin, xMax, yM
 	else:
 		sprite.position = Vector2(xMin, yMin)
 		
-	sprite.scale = Vector2(desired_width / tex_width, desired_height / tex_height)
+	sprite.scale = Vector2(desired_width/tex_width, desired_height/tex_height)
+
+func make_rect(xMin, yMin, xMax, yMax) -> Rect2:
+	return Rect2(Vector2(xMin, yMin), Vector2(xMax - xMin, yMax - yMin))

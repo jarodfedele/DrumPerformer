@@ -78,7 +78,7 @@ func get_layout_coordinates(is_panorama):
 	if is_panorama:
 		staff_x_min = 15
 		staff_x_size = base_width - staff_x_min
-		staff_y_size = Global.NOTATION_YSIZE
+		staff_y_size = Global.NOTATION_YSIZE + Global.STAFF_SPACE_HEIGHT * 3
 		staff_y_min = base_height - staff_y_size
 		
 		highway_x_size = Global.HIGHWAY_XSIZE

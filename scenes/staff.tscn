@@ -45,3 +45,11 @@ default_color = Color(0.235294, 0.482353, 0.239216, 1)
 [node name="ContentsDisplay" type="Sprite2D" parent="."]
 material = SubResource("ShaderMaterial_ov8dy")
 centered = false
+
+[node name="PanoramaOverlay" type="Node2D" parent="."]
+
+[node name="PanoramaStaffLineStubs" type="Node2D" parent="PanoramaOverlay"]
+unique_name_in_owner = true
+
+[node name="PanoramaClef" type="Sprite2D" parent="PanoramaOverlay"]
+unique_name_in_owner = true

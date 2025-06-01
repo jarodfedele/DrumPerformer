@@ -10,6 +10,7 @@ var x_max: int
 var y_max: int
 var staffline_x_min
 var staffline_x_max
+var initial_x_offset
 var default_center_staff_line_yPos
 var clef_xMin
 var clef_yMin
@@ -21,9 +22,11 @@ var notation_measure_list : Array
 
 var time_xPos_points : Array
 var notation_lines : Array
+var notation_page_starting_time_pos_list : Array
 
 var noteheads : Array
 var hairpins : Array
+var tempos : Array
 
 var stem_yPos_both_voices
 
@@ -34,6 +37,8 @@ var stem_yPos_both_voices
 @onready var notation_display = %NotationDisplay
 @onready var seek_line = $SeekLine
 @onready var contents_display = $ContentsDisplay
+@onready var panorama_clef = %PanoramaClef
+@onready var panorama_staff_line_stubs = %PanoramaStaffLineStubs
 
 var notation_line_list
 var notation_time_list
@@ -73,6 +78,7 @@ static func create(is_playable: bool, is_panorama,
 	else:
 		instance.staffline_x_min = instance.x_min + 60
 		instance.staffline_x_max = instance.x_max - 30
+	instance.initial_x_offset = instance.staffline_x_min - instance.x_min
 	
 	instance.default_center_staff_line_yPos = Global.center_staff_line_index * Global.STAFF_SPACE_HEIGHT
 	
@@ -89,6 +95,8 @@ static func create(is_playable: bool, is_panorama,
 	instance.clef_xMax = instance.clef_xMin + clef_xSize
 	instance.clef_scale = Vector2(clef_xSize / tex_size_x, clef_ySize / tex_size_y)
 	
+	instance.notation_page_starting_time_pos_list = []
+	
 	return instance
 
 func _ready():
@@ -99,13 +107,79 @@ func _ready():
 	populate_notations()
 	
 	store_notation_lines()
-
+	
+	panorama_clef.visible = is_panorama
+	if is_panorama:
+		panorama_clef.texture = load(Global.CLEF_PATH)
+		panorama_clef.centered = false
+		panorama_clef.position = Vector2(clef_xMin, default_center_staff_line_yPos-Global.STAFF_SPACE_HEIGHT+y_min)
+		panorama_clef.scale = clef_scale
+		print(panorama_clef.position)
+		print(panorama_clef.scale)
+	
+	var bound_xMin
+	if is_panorama:
+		bound_xMin = clef_xMax  + Global.STAFF_SPACE_HEIGHT*0.5
+		
+		#staff lines
+		for i in range(5):
+			var yPos = default_center_staff_line_yPos + (i-2)*Global.STAFF_SPACE_HEIGHT + y_min
+			var line = Line2D.new()
+			line.default_color = Color.BLACK
+			line.width = 2
+			line.add_point(Vector2(staffline_x_min, yPos))
+			line.add_point(Vector2(bound_xMin + Global.STAFF_SPACE_HEIGHT*3, yPos))
+			panorama_staff_line_stubs.add_child(line)
+	else:
+		bound_xMin = x_min
 	contents_display.texture = contents_sub_viewport.get_texture()
 	contents_display.material.set_shader_parameter("edge_fade_1", EDGE_FADE_1)
 	contents_display.material.set_shader_parameter("edge_fade_2", EDGE_FADE_2)
-	contents_display.material.set_shader_parameter("bounds_min", Vector2(x_min, y_min))
+	contents_display.material.set_shader_parameter("bounds_min", Vector2(bound_xMin, y_min))
 	contents_display.material.set_shader_parameter("bounds_max", Vector2(x_min+x_size, y_min+y_size))
 	contents_display.material.set_shader_parameter("custom_bounds", true)
+		
+	if is_panorama:
+		var line_yMin = get_line_yMin(0)
+		var x_offsets = notation_lines[0][2]
+		var measure_index = 0
+		for x_offset in x_offsets:
+			var notation_measure = notation_measure_list[measure_index]
+			notation_measure.position.x = x_offset
+			notation_measure.position.y = line_yMin
+			measure_index += 1
+		
+		for line_number in range(notation_page_starting_time_pos_list.size()):
+			var position_x_offset = notation_page_starting_time_pos_list[line_number][1]
+			if line_number > 0:
+				position_x_offset += -initial_x_offset*2
+			position_x_offset = -position_x_offset + notation_page_starting_time_pos_list[0][1]
+			notation_page_starting_time_pos_list[line_number][1] = position_x_offset
+		
+		display_measures_from_index(0, 0)
+	else:
+		print(notation_page_starting_time_pos_list.size())
+		var initial_y_offset = get_line_yMin(0) + (y_size*0.5)
+		for notation_line_number in range(notation_lines.size()):
+			var line_yMin = get_line_yMin(notation_line_number)
+			var starting_measure_index = notation_lines[notation_line_number][1]
+			var x_offsets = notation_lines[notation_line_number][2]
+			
+			var measure_index = starting_measure_index
+			for x_offset in x_offsets:
+				var notation_measure = notation_measure_list[measure_index]
+				notation_measure.position.x = x_offset
+				notation_measure.position.y = line_yMin
+				measure_index += 1
+			
+			display_measures_from_index(notation_line_number, 0)
+			
+			var starting_notation_measure = notation_measure_list[starting_measure_index]
+			var time = starting_notation_measure.time_xPos_points[0][0]
+			notation_page_starting_time_pos_list.append([time, -(line_yMin-initial_y_offset), starting_notation_measure])
+
+	add_hairpins_to_display()
+	add_ties_to_display()
 	
 func create_measure_number_node(measure_number_text):
 	var node = Label.new()
@@ -129,9 +203,12 @@ func get_consecutive_measure_x_offsets(starting_measure_index) -> Array:
 	var x_offsets = []
 	var ended_last_measure = true
 	
-	var initial_x_offset = staffline_x_min - x_min
 	var x_offset = initial_x_offset
-	
+	var panorama_position_x = x_offset
+	if is_panorama:
+		var time = notation_measure_list[0].time_xPos_points[0][0]
+		notation_page_starting_time_pos_list.append([time, panorama_position_x, notation_measure_list[0]])
+		
 	var measure_index = starting_measure_index
 	
 	var attempting_to_squeeze_additional_measure = false
@@ -158,8 +235,17 @@ func get_consecutive_measure_x_offsets(starting_measure_index) -> Array:
 			boundary_x_min = x_offset
 		x_offset += notation_measure.size_x
 		var current_x_boundary_max = x_offset
+		
+		var recent_panorama_x_position
+		if is_panorama:
+			recent_panorama_x_position = notation_page_starting_time_pos_list[notation_page_starting_time_pos_list.size()-1][1]
+		if is_panorama and x_offset-recent_panorama_x_position > staffline_x_max and measure_index > 0:
+			var time = notation_measure.time_xPos_points[0][0]
+			var prev_measure = notation_measure_list[measure_index-1]
+			var prev_x_offset = x_offsets[x_offsets.size()-2] + prev_measure.size_x
+			notation_page_starting_time_pos_list.append([time, prev_x_offset, notation_measure])
 			
-		if x_offset > staffline_x_max:
+		if x_offset > staffline_x_max and !is_panorama:
 			if !is_panorama:
 				var line_x_size = current_x_boundary_max - boundary_x_min
 				var desired_x_size = final_x_boundary_max - boundary_x_min
@@ -241,6 +327,7 @@ func get_consecutive_measure_x_offsets(starting_measure_index) -> Array:
 		prev_x_boundary_max = current_x_boundary_max
 		measure_index += 1
 	
+	print(notation_page_starting_time_pos_list)
 	return [x_offsets, ended_last_measure]
 
 func get_index_in_line(notation_measure):
@@ -288,6 +375,91 @@ func store_notation_lines():
 		var notation_measure = notation_measure_list[measure_index]
 		notation_measure.set_notation_positions()
 		
+		fix_rest_collision(notation_measure, 1)
+		fix_rest_collision(notation_measure, 2)
+		fix_staff_text_and_tempo_collision(notation_measure)
+
+func is_any_collision(rects_to_move, rects_static):
+	for rect in rects_to_move:
+		for rect_static in rects_static:
+			if rect.intersects(rect_static):
+				return true
+	return false
+	
+func get_collision_y_offset(rects_to_move: Array, rects_static: Array, move_up: bool):
+	const EXTRA_PIXELS = 4
+	for i in range(rects_static.size()):
+		var rect_static = rects_static[i]
+		rect_static.position.y -= EXTRA_PIXELS / 2.0
+		rect_static.size.y += EXTRA_PIXELS
+		rects_static[i] = rect_static
+		
+	var direction
+	if move_up:
+		direction = -1
+	else:
+		direction = 1
+	var increment = Global.STAFF_SPACE_HEIGHT * direction
+	
+	var y_offset = 0
+	while is_any_collision(rects_to_move, rects_static):
+		y_offset += increment
+		for i in range(rects_to_move.size()):
+			var rect = rects_to_move[i]
+			rect.position.y += increment
+			rects_to_move[i] = rect
+		
+	return y_offset
+			
+func fix_rest_collision(notation_measure, voice_index: int):
+	var rests = []
+	var static_notations = []
+	for notation in notation_measure.get_children():
+		var category = notation.category
+		if category == "rest" and notation.voice_index == voice_index:
+			rests.append(notation)
+		if category == "notehead" or category == "gracenotehead":
+			static_notations.append(notation)
+	
+	var rects_to_move = []
+	var rects_static = []
+	for notation in rests:
+		var rect = Utils.make_rect(notation.xMin, notation.yMin, notation.xMax, notation.yMax)
+		rects_to_move.append(rect)
+	for notation in static_notations:
+		var rect = Utils.make_rect(notation.xMin, notation.yMin, notation.xMax, notation.yMax)
+		rects_static.append(rect)
+		
+	var collision_y_offset = get_collision_y_offset(rects_to_move, rects_static, voice_index==1)
+	for rest in rests:
+		rest.yMin += collision_y_offset
+		rest.yMax += collision_y_offset
+		rest.position.y += collision_y_offset
+
+func fix_staff_text_and_tempo_collision(notation_measure):
+	var staff_text_notations = []
+	var static_notations = []
+	for notation in notation_measure.get_children():
+		var category = notation.category
+		if category == "staff_text" or category == "tempo":
+			staff_text_notations.append(notation)
+		if category == "notehead" or category == "gracenotehead" or category == "rest" or category == "stem" or category == "gracestem" or category == "tuplet_line" or category == "tuplet_number" or category == "articulation":
+			static_notations.append(notation)
+	
+	var rects_to_move = []
+	var rects_static = []
+	for notation in staff_text_notations:
+		var rect = Utils.make_rect(notation.xMin, notation.yMin, notation.xMax, notation.yMax)
+		rects_to_move.append(rect)
+	for notation in static_notations:
+		var rect = Utils.make_rect(notation.xMin, notation.yMin, notation.xMax, notation.yMax)
+		rects_static.append(rect)
+	var collision_y_offset = get_collision_y_offset(rects_to_move, rects_static, true)
+	for notation in staff_text_notations:
+		notation.yMin += collision_y_offset
+		notation.yMax += collision_y_offset
+		notation.position.y += collision_y_offset
+				
 func get_measure_from_time(time): #TODO: binary search optimization
 	for notation_measure in notation_measure_list:
 		if time >= notation_measure.get_measure_time():
@@ -351,24 +523,42 @@ func draw_staff_line_body(line_x_min, line_x_max, center_staff_line_yPos):
 		notation_display.add_child(line)
 
 func get_line_yMin(staffline_id):
+	if is_panorama:
+		staffline_id = 0
 	return y_min + staffline_id*Global.NOTATION_YSIZE
 	
 func get_center_staff_line_yPos(staffline_id):
 	return default_center_staff_line_yPos + get_line_yMin(staffline_id)
 
-func update_notation_measure_positions(current_line_number, starting_staffline_id):
-	for notation_line_number in range(notation_lines.size()):
-		var staffline_id = notation_line_number - current_line_number + starting_staffline_id
-		var line_yMin = get_line_yMin(staffline_id)
-		var starting_measure_index = notation_lines[notation_line_number][1]
-		var x_offsets = notation_lines[notation_line_number][2]
+func update_notation_line(notation_line_number, staffline_id):
+	var line_yMin = get_line_yMin(staffline_id)
+	var starting_measure_index = notation_lines[notation_line_number][1]
+	var x_offsets = notation_lines[notation_line_number][2]
+	
+	var measure_index = starting_measure_index
+	for x_offset in x_offsets:
+		var notation_measure = notation_measure_list[measure_index]
+		notation_measure.position.x = x_offset
+		notation_measure.position.y = line_yMin
+		measure_index += 1
 		
-		var measure_index = starting_measure_index
-		for x_offset in x_offsets:
-			var notation_measure = notation_measure_list[measure_index]
-			notation_measure.position.x = x_offset
-			notation_measure.position.y = line_yMin
-			measure_index += 1
+func update_notation_measure_positions(current_line_number, starting_staffline_id):
+	if is_panorama:
+		pass
+	else:
+		for notation_line_number in range(notation_lines.size()):
+			var staffline_id = notation_line_number - current_line_number + starting_staffline_id
+			update_notation_line(notation_line_number, staffline_id)
+			#var line_yMin = get_line_yMin(staffline_id)
+			#var starting_measure_index = notation_lines[notation_line_number][1]
+			#var x_offsets = notation_lines[notation_line_number][2]
+			#
+			#var measure_index = starting_measure_index
+			#for x_offset in x_offsets:
+				#var notation_measure = notation_measure_list[measure_index]
+				#notation_measure.position.x = x_offset
+				#notation_measure.position.y = line_yMin
+				#measure_index += 1
 
 func display_measures_from_index(starting_notation_line_number, staffline_id):
 	var notation_line_number = starting_notation_line_number + staffline_id
@@ -376,14 +566,14 @@ func display_measures_from_index(starting_notation_line_number, staffline_id):
 		return
 	
 	var line_yMin = get_line_yMin(staffline_id)
-	var center_staff_line_yPos = get_center_staff_line_yPos(staffline_id)
+	var center_staff_line_yPos = get_center_staff_line_yPos(starting_notation_line_number)
 	
 	var starting_measure_index = notation_lines[notation_line_number][1]
 	var x_offsets = notation_lines[notation_line_number][2]
 	var ended_last_measure = notation_lines[notation_line_number][3]
 	
 	#clef
-	if !is_panorama or staffline_id == 0:
+	if !is_panorama:
 		var clef_node = Sprite2D.new()
 		clef_node.texture = load(Global.CLEF_PATH)
 		clef_node.centered = false
@@ -401,7 +591,7 @@ func display_measures_from_index(starting_notation_line_number, staffline_id):
 	for x_offset in x_offsets:
 		var notation_measure = notation_measure_list[measure_index]
 		notation_display.add_child(notation_measure)
-
+		
 		for point in notation_measure.time_xPos_points:
 			var time = point[0]
 			var xPos = point[1] + x_offset 
@@ -448,10 +638,10 @@ func display_measures_from_index(starting_notation_line_number, staffline_id):
 		line_x_max = staffline_x_max
 	draw_staff_line_body(staffline_x_min, line_x_max, center_staff_line_yPos)
 	
-	var next_starting_measure_index
-	if !ended_last_measure and !is_panorama:
-		next_starting_measure_index = starting_measure_index + x_offsets.size()
-	return next_starting_measure_index
+	#var next_starting_measure_index
+	#if !ended_last_measure and !is_panorama:
+		#next_starting_measure_index = starting_measure_index + x_offsets.size()
+	#return next_starting_measure_index
 
 func add_beam_node(stem_node, beam_xMin, beam_x_size, stem_yPos, beam_id, voice_index, over_measure):
 	var yOffset = beam_id*(Global.BEAM_YSIZE+Global.BEAM_YSPACING)
@@ -507,6 +697,8 @@ func add_beam_nodes(stem_notation_nodes_both_voices, voice_index):
 func populate_notations():
 	noteheads = []
 	hairpins = []
+	tempos = []
+	
 	var stem_notation_nodes_both_voices = [[], []]
 	
 	notation_measure_list = []
@@ -561,12 +753,16 @@ func populate_notations():
 					node.centered = false
 					Utils.set_sprite_position_and_scale(node, 0, 0, xMax-xMin, yMax-yMin)
 					
-					if category == "notehead":
+					if category == "notehead" or category == "gracenotehead":
 						var note_str = str(misc)
 						current_notation.voice_index = int(note_str.substr(0, 1))
-						current_notation.midi_id = int(note_str.substr(1))
+						current_notation.has_tie = int(note_str.substr(1, 1)) == 1
+						current_notation.midi_id = int(note_str.substr(2))
 						node.z_index = 1
 						noteheads.append(current_notation)
+					if category == "rest":
+						var note_str = str(misc)
+						current_notation.voice_index = int(note_str)
 					if category == "timesig":
 						time_sig_notations.append(current_notation)
 						
@@ -595,14 +791,135 @@ func populate_notations():
 					font.set_data(Global.FONT_ACADEMICO_ITALIC.get_data())
 
 					label_settings.font = font
-					label_settings.font_size = 20
+					var font_size = 20
+					label_settings.font_size = font_size
 					label_settings.font_color = Color.BLACK
-					node.set_label_settings(label_settings)	
+					node.set_label_settings(label_settings)
+					
+					var text_width = font.get_string_size(node.text).x
+					
+					current_notation.xMax = current_notation.xMin + text_width
+					current_notation.yMax = default_center_staff_line_yPos - Global.STAFF_SPACE_HEIGHT*3
+					current_notation.yMin = current_notation.yMax - font.get_ascent(font_size)
+					
 				elif category == "measure_number":
 					var measure_number_text = str(file_name)
 					node = create_measure_number_node(measure_number_text)
 					current_notation.node_type = "Label"
 					notation_measure.measure_number_text = measure_number_text
+				elif category == "tempo":
+					for extra_index in range(7, data.size()):
+						var str = data[extra_index]
+						var key_and_value = str.split("=")
+						var key = key_and_value[0]
+						var value = key_and_value[1]
+						if key == "bpm":
+							var parts = value.split(",")
+							var bpm_basis_filename = parts[0]
+							var bpm_basis_has_dot = bpm_basis_filename.ends_with("d")
+							if bpm_basis_has_dot:
+								bpm_basis_filename = bpm_basis_filename.substr(0, bpm_basis_filename.length()-1)
+							var bpm_value = parts[1]
+							current_notation.bpm_basis_filename = bpm_basis_filename
+							current_notation.bpm_basis_has_dot = bpm_basis_has_dot
+							current_notation.bpm_value = bpm_value
+						if key == "direction":
+							var performance_direction = value
+							current_notation.performance_direction = performance_direction
+					current_notation.yMax = default_center_staff_line_yPos - Global.STAFF_SPACE_HEIGHT*3
+					current_notation.yMin = current_notation.yMax - Global.STAFF_SPACE_HEIGHT*2
+					
+					var bpm_basis_filename = current_notation.bpm_basis_filename
+					var bpm_basis_has_dot = current_notation.bpm_basis_has_dot
+					var bpm_value = current_notation.bpm_value
+					var performance_direction = current_notation.performance_direction
+					
+					var bound_yMax = current_notation.yMax
+					var bound_yMin = current_notation.yMin
+					var bound_size = bound_yMax-bound_yMin
+					
+					var current_x_position_offset = 0
+					
+					var sprite
+					var tex_size_x
+					var tex_size_y
+					var desired_size_x
+					var desired_size_y
+					var scaling_factor
+					
+					if bpm_value:
+						sprite = Sprite2D.new()
+						sprite.texture = load(Global.NOTATIONS_PATH + bpm_basis_filename + ".png")
+						tex_size_x = float(sprite.texture.get_width())
+						tex_size_y = float(sprite.texture.get_height())
+						desired_size_y = bound_yMax - bound_yMin
+						scaling_factor = desired_size_y/tex_size_y
+						desired_size_x = tex_size_x*scaling_factor
+						sprite.centered = false
+						sprite.scale = Vector2(desired_size_x/tex_size_x, desired_size_y/tex_size_y)
+						sprite.position.x += current_x_position_offset
+						current_notation.add_child(sprite)
+						
+						if bpm_basis_has_dot:
+							current_x_position_offset += Global.STAFF_SPACE_HEIGHT*1.3
+							
+							sprite = Sprite2D.new()
+							sprite.texture = load(Global.NOTATIONS_PATH + "dot.png")
+							tex_size_x = float(sprite.texture.get_width())
+							tex_size_y = float(sprite.texture.get_height())
+							desired_size_y = bound_yMax - bound_yMin
+							scaling_factor = desired_size_y/tex_size_y
+							desired_size_x = tex_size_x*scaling_factor
+							sprite.centered = false
+							sprite.scale = Vector2(desired_size_x/tex_size_x, desired_size_y/tex_size_y)*0.13
+							sprite.position.x += current_x_position_offset
+							sprite.position.y += bound_size*0.8
+							current_notation.add_child(sprite)
+							
+							current_x_position_offset += Global.STAFF_SPACE_HEIGHT*0.8
+						else:
+							current_x_position_offset += Global.STAFF_SPACE_HEIGHT*1.7
+						
+						var label
+						var text
+						var label_settings
+						var font
+						var font_size
+						var text_size
+						var text_width
+						var text_height
+						
+						label = Label.new()
+						text = "= " + bpm_value
+						if performance_direction:
+							text += "  " + performance_direction
+						label.text = text
+
+						label_settings = LabelSettings.new()
+						font = FontFile.new()
+						font.set_data(Global.FONT_ACADEMICO_BOLD.get_data())
+
+						label_settings.font = font
+						font_size = 22
+						label_settings.font_size = font_size
+						label_settings.font_color = Color.BLACK
+						label.set_label_settings(label_settings)
+						
+						text_size = font.get_string_size(label.text, 0, -1, font_size)
+						text_width = text_size.x
+						text_height = text_size.y
+						
+						label.position.x += current_x_position_offset
+						label.position.y += (bound_yMax-bound_yMin) - font.get_ascent(font_size) - Global.STAFF_SPACE_HEIGHT*0.1
+						
+						current_notation.add_child(label)
+						
+						current_x_position_offset += text_width + Global.STAFF_SPACE_HEIGHT*1.3
+					
+					current_notation.xMax = current_notation.xMin + current_x_position_offset
+					
+					tempos.append(current_notation)
+					
 				elif category == "dynamic_hairpin":
 					current_notation.hairpin_type = str(misc)
 					hairpins.append(current_notation)
@@ -701,25 +1018,40 @@ func get_current_notation_seek_xPos():
 	return [xPos, is_next_line]
 
 func get_line_number_and_percentage_to_next_line(time, force_valid):
-	var line_number = Utils.binary_search_closest_or_less(notation_lines, time, 0)
+	var arr
+	var line_number
+	if is_panorama:
+		arr = notation_page_starting_time_pos_list
+		line_number = Utils.binary_search_closest_or_less(arr, time, 0)
+	else:
+		arr = notation_lines
+		line_number = Utils.binary_search_closest_or_less(arr, time, 0)
 	
 	var percentage_to_next_line
-	if line_number == -1 or line_number == notation_lines.size()-1:
+	var current_measure
+	var next_measure
+	if line_number == -1 or line_number == arr.size()-1:
 		percentage_to_next_line = 0
 	else:
-		var current_measure_index = notation_lines[line_number][1]
-		var next_measure_index = notation_lines[line_number+1][1]
-		var current_line_start_time = notation_measure_list[current_measure_index].time_xPos_points[0][0]
-		var next_line_start_time = notation_measure_list[next_measure_index].time_xPos_points[0][0]
+		if is_panorama:
+			current_measure = arr[line_number][2]
+			next_measure = arr[line_number+1][2]
+		else:
+			current_measure = notation_measure_list[notation_lines[line_number][1]]
+			next_measure = notation_measure_list[notation_lines[line_number+1][1]]
+		var current_line_start_time = current_measure.time_xPos_points[0][0]
+		var next_line_start_time = next_measure.time_xPos_points[0][0]
 		percentage_to_next_line = Utils.convert_range(time, current_line_start_time, next_line_start_time, 0.0, 1.0)
 	
 	if force_valid:
 		line_number = max(line_number, 0)
-		line_number = min(line_number, notation_lines.size()-1)
-		
+		line_number = min(line_number, arr.size()-1)
+	
 	return [line_number, percentage_to_next_line]
 
 func add_hairpins_to_display():
+	var hairpin_line_nodes = []
+	
 	for hairpin_id in range(0, hairpins.size(), 2):
 		var hairpin_start = hairpins[hairpin_id]
 		var hairpin_end = hairpins[hairpin_id+1]
@@ -758,7 +1090,7 @@ func add_hairpins_to_display():
 			var starting_measure = notation_measure_list[notation_lines[line_number][1]]
 			var starting_measure_position_y = starting_measure.position.y	
 			var yPos = default_center_staff_line_yPos + Global.STAFF_SPACE_HEIGHT*4 + starting_measure_position_y
-			hairpin_bounds.append([xMin, xMax, yPos])
+			hairpin_bounds.append([xMin, xMax, yPos, line_number])
 			x_total += xMax - xMin
 		
 		var current_percentage_start = 0
@@ -773,8 +1105,8 @@ func add_hairpins_to_display():
 		var type = hairpin_start.hairpin_type
 		for bound in hairpin_bounds:
 			var percentage = (bound[1] - bound[0])/x_total
-			var percentage_start = bound[3]
-			var percentage_end = bound[4]
+			var percentage_start = bound[4]
+			var percentage_end = bound[5]
 			if type == "diminuendo" or type == "decrescendo":
 				percentage_start = 1 - percentage_start
 				percentage_end = 1 - percentage_end
@@ -787,6 +1119,8 @@ func add_hairpins_to_display():
 			var yMin_right = bound[2] - distance_from_center_right
 			var yMax_right = bound[2] + distance_from_center_right
 			
+			var line_number = bound[3]
+			
 			var line_top = Line2D.new()
 			line_top.default_color = Color.BLACK
 			line_top.width = 2
@@ -794,10 +1128,7 @@ func add_hairpins_to_display():
 			line_top.add_point(Vector2(bound[1], yMin_right))
 			line_top.antialiased = true
 			notation_display.add_child(line_top)
-			
-			print("TEST")
-			print(Vector2(bound[0], yMin_left))
-			print(Vector2(bound[1], yMin_right))
+			hairpin_line_nodes.append([line_top, line_number])
 			
 			var line_bottom = Line2D.new()
 			line_bottom.default_color = Color.BLACK
@@ -805,14 +1136,142 @@ func add_hairpins_to_display():
 			line_bottom.add_point(Vector2(bound[0], yMax_left))
 			line_bottom.add_point(Vector2(bound[1], yMax_right))
 			notation_display.add_child(line_bottom)
-
-		print("---")
-		print(Vector2(measure_index_start, measure_index_end))
-		print(Vector2(line_number_start, line_number_end))
-		print(Vector2(xPos_start, xPos_end))
-		print(hairpin_bounds)
-		print(type)
+			hairpin_line_nodes.append([line_bottom, line_number])
 			
+	for line_number in range(notation_lines.size()):
+		var notation_line = notation_lines[line_number]
+		
+		var dynamic_notations = []
+		var static_notations = []
+		var has_hairpins = false
+		for line_data in hairpin_line_nodes:
+			if line_data[1] == line_number:
+				has_hairpins = true
+				break
+		
+		var starting_measure_index = notation_line[1]
+		var x_offsets = notation_line[2]
+		for i in range(x_offsets.size()):
+			var notation_measure = notation_measure_list[starting_measure_index+i]
+			for notation in notation_measure.get_children():
+				var category = notation.category
+				if category == "dynamic_sprite":
+					dynamic_notations.append(notation)
+				if category == "notehead" or category == "gracenotehead" or category == "rest" or category == "stem" or category == "gracestem" or category == "tuplet_line" or category == "tuplet_number" or category == "articulation":
+					static_notations.append(notation)
+
+		var rects_static = []
+		for notation in static_notations:
+			var rect = Utils.make_rect(notation.xMin, notation.yMin, notation.xMax, notation.yMax)
+			rects_static.append(rect)
+		
+		var dynamic_yMin = default_center_staff_line_yPos + Global.STAFF_SPACE_HEIGHT*3
+		var dynamic_yMax = dynamic_yMin + Global.STAFF_SPACE_HEIGHT*2
+
+		if has_hairpins:
+			var rect = [Utils.make_rect(-10000, dynamic_yMin, 10000, dynamic_yMax)]
+			var collision_y_offset = get_collision_y_offset(rect, rects_static, false)
+			for notation in dynamic_notations:
+				notation.position.y = collision_y_offset
+			for line_data in hairpin_line_nodes:
+				var line = line_data[0]
+				if line_data[1] == line_number:
+					line.position.y = collision_y_offset
+		else:
+			for notation in dynamic_notations:
+				var rect = [Utils.make_rect(notation.xMin, dynamic_yMin, notation.xMax, dynamic_yMax)]
+				var collision_y_offset = get_collision_y_offset(rect, rects_static, false)
+				notation.position.y = collision_y_offset
+
+
+					
+func add_tie(xMin, xMax, y1, y2):
+	var xSize = xMax - xMin
+	var y_diff = y2 - y1
+	
+	var curve = Curve2D.new()
+	curve.add_point(Vector2(xMin, y1), Vector2.ZERO, Vector2(xSize*Global.TIE_XPERCENTAGE, y_diff*Global.TIE_YPERCENTAGE))
+	curve.add_point(Vector2(xMax, y1), Vector2(xSize*Global.TIE_XPERCENTAGE*-1, y_diff*Global.TIE_YPERCENTAGE), Vector2.ZERO)
+	
+	var total_length = curve.get_baked_length()
+	var points = []
+	var segments = 30
+
+	for i in range(segments + 1):
+		var t = float(i) / segments
+		var distance = t * total_length
+		points.append(curve.sample_baked(distance))
+						
+	#var polygon = Polygon2D.new()
+	#polygon.polygon = PackedVector2Array(points)
+	#polygon.color = Color.BLACK
+	#notation_display.add_child(polygon)
+	
+	var line = Line2D.new()
+	line.points = PackedVector2Array(points)
+	line.default_color = Color.BLACK
+	line.width = 2
+	notation_display.add_child(line)
+						
+func add_ties_to_display():
+	var noteheads_currently_awaiting_ties = []
+	for notehead in noteheads:
+		var midi_id = notehead.midi_id
+
+		for notehead_awaiting_tie_end in noteheads_currently_awaiting_ties:
+			if notehead_awaiting_tie_end.midi_id == midi_id:
+				noteheads_currently_awaiting_ties.erase(notehead_awaiting_tie_end)
+				var notehead_start = notehead_awaiting_tie_end
+				var notehead_end = notehead
+				
+				var measure_start = notehead_start.get_parent()
+				var measure_end = notehead_end.get_parent()
+				var measure_index_start = measure_start.measure_index
+				var measure_index_end = measure_end.measure_index
+				var line_number_start = Utils.binary_search_closest_or_less(notation_lines, measure_index_start, 1)
+				var line_number_end = Utils.binary_search_closest_or_less(notation_lines, measure_index_end, 1)
+				var voice_index = notehead_start.voice_index
+
+				if line_number_start == line_number_end:
+					var xMin = notehead_start.xMax + measure_start.position.x + Global.TIE_XGAP
+					var xMax = notehead_end.xMax + measure_end.position.x - Global.TIE_XGAP*2
+					var y1
+					var y2
+					if voice_index == 1:
+						y1 = notehead_start.yMin + measure_start.position.y - Global.TIE_YGAP
+						y2 = y1 - Global.TIE_HEIGHT
+					else:
+						y1 = notehead_start.yMax + measure_start.position.y + Global.TIE_YGAP
+						y2 = y1 + Global.TIE_HEIGHT
+					add_tie(xMin, xMax, y1, y2)
+				else:
+					var xMin_1 = notehead_start.xMax + measure_start.position.x + Global.TIE_XGAP
+					var xMax_1 = staffline_x_max - Global.TIE_XGAP*2
+					var y1_1
+					var y2_1
+					if voice_index == 1:
+						y1_1 = notehead_start.yMin + measure_start.position.y - Global.TIE_YGAP
+						y2_1 = y1_1 - Global.TIE_HEIGHT
+					else:
+						y1_1 = notehead_start.yMax + measure_start.position.y + Global.TIE_YGAP
+						y2_1 = y1_1 + Global.TIE_HEIGHT
+					add_tie(xMin_1, xMax_1, y1_1, y2_1)
+
+					var xMin_2 = clef_xMax+Global.STAFF_SPACE_HEIGHT*1.5 + Global.TIE_XGAP
+					var xMax_2 = notehead_end.xMin + measure_end.position.x - Global.TIE_XGAP*2
+					var y1_2
+					var y2_2
+					if voice_index == 1:
+						y1_2 = notehead_end.yMin + measure_end.position.y - Global.TIE_YGAP
+						y2_2 = y1_2 - Global.TIE_HEIGHT
+					else:
+						y1_2 = notehead_end.yMax + measure_end.position.y + Global.TIE_YGAP
+						y2_2 = y1_2 + Global.TIE_HEIGHT
+					add_tie(xMin_2, xMax_2, y1_2, y2_2)
+				break
+		if notehead.has_tie:
+			noteheads_currently_awaiting_ties.append(notehead)
+
 func hide_notation_measure_items(notation_measure):
 	for notation in notation_measure.get_children():
 		var category = notation.category
@@ -835,22 +1294,23 @@ func update_contents():
 	var current_line_number = current_line_number_and_percentage_to_next_line[0]
 	var percentage_to_next_line = current_line_number_and_percentage_to_next_line[1]
 	
+	var low_percentage_bound
+	if is_panorama:
+		low_percentage_bound = 0.95
+	else:
+		low_percentage_bound = 0
+		
+	var position_offset = notation_page_starting_time_pos_list[current_line_number][1]
+	if percentage_to_next_line >= low_percentage_bound:
+		var next_position_offset = notation_page_starting_time_pos_list[current_line_number+1][1]
+		var animated_offset = Utils.convert_range(percentage_to_next_line, low_percentage_bound, 1, position_offset, next_position_offset)
+		position_offset = animated_offset
+	if is_panorama:
+		notation_display.position.x = position_offset
+	else:
+		notation_display.position.y = position_offset
+		
 	if current_line_number != prev_line_number:
-		for child in notation_display.get_children():
-			notation_display.remove_child(child)
-		
-		time_xPos_points = []
-		if is_panorama:
-			var starting_staffline_id = 0
-			update_notation_measure_positions(current_line_number, starting_staffline_id)
-			display_measures_from_index(current_line_number, 0)
-		else:
-			var starting_staffline_id = 2
-			update_notation_measure_positions(current_line_number, starting_staffline_id)
-			for staffline_id in range(Global.NUM_NOTATION_ROWS+2):
-				display_measures_from_index(current_line_number-starting_staffline_id, staffline_id)
-		add_hairpins_to_display()
-		
 		#animate hiding
 		if !is_panorama and prev_line_number != null and prev_line_number > -1 and prev_line_number < notation_lines.size():
 			var prev_notation_line = notation_lines[prev_line_number]
@@ -875,7 +1335,7 @@ func update_contents():
 			seek_yMin = y_min + Global.STAFF_SPACE_HEIGHT
 			seek_yMax = y_max - Global.STAFF_SPACE_HEIGHT
 		else:
-			var line_num = 2
+			var line_num = current_line_number
 			if is_next_line:
 				line_num += 1
 				
@@ -885,10 +1345,10 @@ func update_contents():
 		seek_line.add_point(Vector2(seek_x, seek_yMin))
 		seek_line.add_point(Vector2(seek_x, seek_yMax))
 	
-	if !is_panorama:
-		var y_animated_offset = int(Utils.convert_range(percentage_to_next_line, 0, 1, 0, -Global.NOTATION_YSIZE))
-		notation_display.position.y = y_animated_offset
-		seek_line.position.y = y_animated_offset
+	if is_panorama:
+		seek_line.position.x = position_offset
+	else:
+		seek_line.position.y = position_offset
 		
 func draw_background():
 	background.modulate.a = 0.93
