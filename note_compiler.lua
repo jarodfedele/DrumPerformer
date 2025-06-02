@@ -97,14 +97,20 @@ function runCompiler(gamedataFileText, drumkitFileText, gemNameTable, configText
 	  return s:gsub("%s+$", "")
 	  end
 
-	local function separateString(str)
+	function separateString(str)
 	  local list = {}
 	  while true do
 		local quotes = (string.sub(str, 1, 1) == "\"")
+		local backticks = (string.sub(str, 1, 1) == "`")
 		
 		local i
-		if quotes then
-		  i = string.find(str, "\" ", 2)
+		if quotes or backticks then
+		  if quotes then
+			i = string.find(str, "\" ", 2)
+			end
+		  if backticks then
+			i = string.find(str, "` ", 2)
+			end
 		  if i then
 			i = i + 1
 			end
@@ -119,7 +125,7 @@ function runCompiler(gamedataFileText, drumkitFileText, gemNameTable, configText
 		  value = string.sub(str, 1, i-1)
 		  end
 		  
-		if quotes then
+		if quotes or backticks then
 		  value = string.sub(value, 2, string.len(value)-1)
 		elseif tonumber(value) then
 		  value = tonumber(value)
@@ -133,7 +139,7 @@ function runCompiler(gamedataFileText, drumkitFileText, gemNameTable, configText
 		str = string.sub(str, i+1, string.len(str))
 		end
 	  end
- 
+  
  	local function getKeyAndValue(str)
 	  local equalsIndex = string.find(str, "=")
 	  local spaceIndex = string.find(str, " ")
