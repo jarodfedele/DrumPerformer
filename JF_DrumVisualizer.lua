@@ -245,21 +245,17 @@ function getNumCharsInString(str, char)
   return select(2, str:gsub(char, ""))
   end
   
-local notationDrawList
 local qnEventList
 local configList
-local noteList, chartBeatList, notationBeatList, measureList, measurePageList, staffLinePositionList
-local sectionTextEvtList, tempoTextEvtList, ghostThresholdTextEvtList, accentThresholdTextEvtList, beamOverRestsTextEvtList
+--local noteList, chartBeatList, notationBeatList, measureList
+--local sectionTextEvtList, tempoTextEvtList, ghostThresholdTextEvtList, accentThresholdTextEvtList, beamOverRestsTextEvtList
 local gemImageList, masterImageList, notationImageList
-local restListBothVoices, rhythmOverrideListBothVoices, tupletListBothVoices, sustainListBothVoices, dynamicList, staffTextList
-local VALID_ARTICULATION_LIST, VALID_BEAM_LIST
-local RESTYCOOR_LIST, FLAGYSIZE_LIST
-local masterSelectedItemList, filteredSelectedItemList, voice1Filter, voice2Filter, currentGradualDynamicXMin
+--local restListBothVoices, rhythmOverrideListBothVoices, tupletListBothVoices, sustainListBothVoices, dynamicList, staffTextList
+--local masterSelectedItemList, filteredSelectedItemList, voice1Filter, voice2Filter, currentGradualDynamicXMin
 
 local VALID_LANEOVERRIDE_LIST = {"tuplet1", "tuplet2", "rhythm1", "rhythm2", "sustain1", "sustain2", "dynamics"}
 local VALID_DYNAMICS_LIST = {"ppp", "pp", "p", "mp", "mf", "f", "ff", "fff", "sf", "sfz", "rfz", "fp", "n", "crescendo", "cresc.", "diminuendo", "decrescendo", "dim."}
 local VALID_RHYTHM_DENOM_LIST = {1, 2, 4, 8, 16, 32, 64, 128}
-local LANE_LIST = {"Lane 1", "Lane 2", "Lane 3", "Lane 4", "Lane 5", "Lane 6", "All Lanes", "Left Edge", "Right Edge", "Both Edges"}
 local VALID_NOTEHEAD_LIST = {
   {"normal", 0.33},
   {"diamond", 0.45},
@@ -267,8 +263,6 @@ local VALID_NOTEHEAD_LIST = {
   {"x", 0.1},
   {"circle-x", 0.1}
 }
-
-local SPECIALTYPELIST = {"kick", "snare", "racktom", "floortom", "hihat", "crash", "ride"}
 
 local SPECIAL_MEASURE_HEADER_LIST = {"gaps"}
 
@@ -318,6 +312,11 @@ function defineIndeces()
   STATEINDEX_ARTICULATION = 5
   STATEINDEX_HHPEDAL = 6
   STATEINDEX_NAME = 7 --always make sure this is the last index!
+  
+  TEMPOMAPINDEX_QN = 1
+  TEMPOMAPINDEX_PPQPOS = 2
+  TEMPOMAPINDEX_TIME = 3
+  TEMPOMAPINDEX_BPM = 4
   
   CHORDGLOBALDATAINDEX_QN = 1
   CHORDGLOBALDATAINDEX_PPQPOS = 2
@@ -502,6 +501,8 @@ REFRESHSTATE_KEEPSELECTIONS = 2
 REFRESHSTATE_ERROR = 3
 currentRefreshState = REFRESHSTATE_COMPLETE
 
+PPQ_RESOLUTION = 960
+
 local windowVisibility_CONFIG = getSettingFromFile("window_config", 1)
 local windowVisibility_CHART = getSettingFromFile("window_chart", 0)
 local windowVisibility_NOTATION = getSettingFromFile("window_notation", 0)
@@ -554,7 +555,6 @@ local STEM_XSHIFT = 1
 local GRACEQNDIFF = 0.00001
 
 local QUARTERBEATXLEN = 110
-local MIN_NOTATION_X_GAP
 
 local DRAWBEAM_START = 0
 local DRAWBEAM_FULLCURRENT = 1
@@ -747,13 +747,13 @@ function isInRect(xPos, yPos, xMin, yMin, xMax, yMax)
   
 function round(num, decimals)
   if not decimals or decimals == 0 then
-    return floor(num+0.5)
+    return math.floor(num+0.5)
     end
     
   local change = 10^decimals
-  local val = floor((num*change+0.5))/change
+  local val = math.floor((num*change+0.5))/change
   if decimals == 0 then
-    val = floor(val)
+    val = math.floor(val)
     end
   return val
   end
@@ -1184,6 +1184,10 @@ function getNotationsDirectory()
   return dir
   end
 
+function getTemposTextFilePath()
+  return getGodotUserDirectory() .. "tempos.txt"
+  end
+  
 function getEventsTextFilePath()
   return getGodotUserDirectory() .. "events.txt"
   end
@@ -1474,7 +1478,6 @@ function defineNotationVariables()
     }
   
   VALID_BEAM_LIST = {"start", "continue", "secondary", "end", "none"} 
-
   end
 
 function drawPreviousMeasureLine(measureIndex)
@@ -1495,12 +1498,9 @@ function drawPreviousMeasureLine(measureIndex)
     
   if measureLabel ~= "end" then
     local measureNumberText = tostring(measureIndex)
-    local textSizeX = reaper.ImGui_CalcTextSize(ctx, measureNumberText)
     local centerX = xMin + (xMax-xMin)/2
-    local xPos = centerX - textSizeX/2
-    local yPos = getStaffLinePosition(2)-notationWindowY - 20
-    addToNotationDrawList({"measureNumber", xPos, xPos, measureNumberText})
-    addToGameData("notation", {"measure_number", nil, "\"" .. measureNumberText .. "\"", xPos, yPos+notationWindowY, xPos, yPos+notationWindowY})
+    addToNotationDrawList({"measureNumber", centerX, centerX, measureNumberText})
+    addToGameData("notation", {"measure_number", nil, "\"" .. measureNumberText .. "\"", centerX, 0, centerX, 0})
     end
   
   addToNotationDrawList({"measureLine", xMin, xMax, yMin, yMax, img})
@@ -1551,7 +1551,7 @@ function getKeyAndValue(str)
   return key, value
   end
   
-function compileChartToCurrentDrumKit()
+function runChartCompiler()
   local fileName = "gamedata.txt"
   
   local file = io.open(getGameDataDirectory() .. fileName, "r")
@@ -1576,10 +1576,44 @@ function compileChartToCurrentDrumKit()
     tableInsert(configTextTable, fileText)
     end
   
-  dofile(getGodotDirectory() .. "note_compiler.lua")
+  dofile(getGodotDirectory() .. "godot_reaper_environment.lua")
   local outputTextFilePath = getGodotUserDirectory() .. "output.txt"
   
-  local fileText = runCompiler(gamedataFileText, drumkitFileText, gemNameTable, configTextTable, outputTextFilePath)
+  local file = io.open(getAssetsDirectory() .. "sizes.txt", "r")
+  local imgSizesFileText = file:read("*all")
+  file:close()
+  
+  local file = io.open(getTemposTextFilePath(), "r")
+  local temposFileText = file:read("*all")
+  file:close()
+  
+  local file = io.open(getEventsTextFilePath(), "r")
+  local eventsFileText = file:read("*all")
+  file:close()
+  
+  local file = io.open(getMIDIDataTextFilePath(), "r")
+  local midiFileText = file:read("*all")
+  file:close()
+  
+  local fileText = runGodotReaperEnvironment(
+    true, 
+    nil, 
+    masterImageList,
+    drumkitFileText, 
+    gemNameTable, 
+    configTextTable, 
+    outputTextFilePath, 
+    imgSizesFileText, 
+    temposFileText,
+    eventsFileText, 
+    midiFileText,
+    drumTake,
+    drumTrack,
+    drumTrackID,
+    eventsTake,
+    eventsTrack,
+    eventsTrackID
+    )
   
   local NUM_CONSTANTS = 1
   local NUM_ARRAYS = 19
@@ -1604,7 +1638,6 @@ function compileChartToCurrentDrumKit()
   local sustain_line_list = {}
   local pedal_list = {}
   local midi_id_list = {}
-  
   
   local line_id = 0
   for line in fileText:gmatch("[^\r\n]+") do
@@ -1761,9 +1794,7 @@ function addToGameData(dataType, values)
   if dataType == "notation" then
     local header = values[1]
     if header ~= "measure" and not isInTable(SPECIAL_MEASURE_HEADER_LIST, header) then
-      if values[2] then --qnQuantized to time
-        values[2] = reaper.MIDI_GetProjTimeFromPPQPos(drumTake, reaper.MIDI_GetPPQPosFromProjQN(drumTake, values[2]))
-      else
+      if not values[2] then --qnQuantized to time
         values[2] = -1
         end
       if not values[3] then --imgFileName
@@ -1799,7 +1830,6 @@ function getXMLDirectory()
   
 function uploadXML()
   local str = table.concat(xmlTable, "\n")
-  --reaper.ShowConsoleMsg("\n---XML---\n\n" .. str .. "\n\n-------\n\n")
   
   local dir = getXMLDirectory()
   local fileName = "generatedXML.xml"
@@ -1954,8 +1984,6 @@ function processNotationMeasures()
   uploadXML()
   
   addToGameData("general", {"center_staff_line", (getStaffLinePosition(0) - NOTATION_YMIN) / STAFFSPACEHEIGHT})
-  
-  getStaffLinePositions()
   end
   
 function pushCollapsingHeaderColor(ctx)
@@ -1997,7 +2025,7 @@ function getNotationItemData(identifier, header)
   end
   
 function notationPosToStaffLine(notationPos)
-  local staffLine = floor(notationPos)
+  local staffLine = math.floor(notationPos)
   return staffLine, staffLine ~= notationPos
   end
 
@@ -2011,20 +2039,7 @@ function getStemYPercentageDownTheNote(notationLabel)
   
   throwError("No intersection data defined! " .. notationLabel)
   end
-
-function getTomConfigurationString(rackTomCount, floorTomCount)
-  local text = ""
   
-  if rackTomCount > 0 then
-    text = text .. rackTomCount .. "R"
-    end
-  if floorTomCount > 0 then
-    text = text .. floorTomCount .. "F"
-    end
-    
-  return text
-  end
-
 function findIndexInListEqualOrGreaterThan(list, target, subTableIndex)
   local low = 1
   local high = #list
@@ -2051,6 +2066,10 @@ function findIndexInListEqualOrGreaterThan(list, target, subTableIndex)
   end
   
 function findIndexInListEqualOrLessThan(list, target, subTableIndex)
+  if not list then
+    debug_printStack()
+    end
+    
   local low = 1
   local high = #list
   local result = nil -- To store the index of the first value >= target
@@ -2719,32 +2738,6 @@ function getNotationProperties(midiNoteNum, channel)
     
   return notehead, staffLine, articulation
   end
-  
-function getNotationTextStr(textEvtID)
-  local _, _, _, _, evtType, msg = reaper.MIDI_GetTextSysexEvt(drumTake, textEvtID)
-  local _, indexStart = string.find(msg, "text ")
-  local indexEnd
-  if indexStart then
-    indexStart = indexStart + 1
-    
-    local textValues
-    if string.sub(msg, indexStart, indexStart) == "\"" then
-      indexStart = indexStart + 1
-      indexEnd = string.find(msg, "\"", indexStart) - 1
-    else
-      local spaceIndex = string.find(msg, " ", indexStart)
-      if spaceIndex then
-        indexEnd = spaceIndex - 1
-      else
-        indexEnd = #msg
-        end
-      end
-    
-    return trimTrailingSpaces(string.sub(msg, indexStart, indexEnd))
-    end
-  
-  return ""
-  end
 
 function setTextEventParameter(take, textEvtID, header, val)
   local _, _, _, _, evtType, msg = reaper.MIDI_GetTextSysexEvt(take, textEvtID)
@@ -2855,10 +2848,10 @@ function setNotationTextEventParameter(noteStartPPQPOS, noteChannel, noteMIDINot
   end
 
 function isNoteDefaultGhost(noteData)
-  local noteStartPPQPOS = noteData[NOTELISTINDEX_STARTPPQPOS]
+  local noteStartQN = noteData[NOTELISTINDEX_STARTQN]
   local velocity = noteData[NOTELISTINDEX_VELOCITY]
   
-  local index = findIndexInListEqualOrLessThan(ghostThresholdTextEvtList, noteStartPPQPOS, 1)
+  local index = findIndexInListEqualOrLessThan(ghostThresholdTextEvtList, noteStartQN, 1)
   local ghostThresh = ghostThresholdTextEvtList[index][2]
   return (velocity <= ghostThresh)
   end
@@ -2875,8 +2868,8 @@ function isNoteGhost(noteData)
 function isChordDefaultAccent(chord)
   local chordGlobalData = chord[1]
   local chordNotes = chord[2]
-  
-  local chordPPQPOS = chordGlobalData[CHORDGLOBALDATAINDEX_PPQPOS]
+
+  local chordQN = chordGlobalData[CHORDGLOBALDATAINDEX_QN]
   local chordArticulationList = chordGlobalData[CHORDGLOBALDATAINDEX_ARTICULATIONLIST]
     
   for chordNoteIndex=1, #chordNotes do
@@ -2884,7 +2877,7 @@ function isChordDefaultAccent(chord)
     
     local velocity = noteData[NOTELISTINDEX_VELOCITY]
     
-    local index = findIndexInListEqualOrLessThan(accentThresholdTextEvtList, chordPPQPOS, 1)
+    local index = findIndexInListEqualOrLessThan(accentThresholdTextEvtList, chordQN, 1)
     local accentThresh = accentThresholdTextEvtList[index][2]
     if accentThresh >= 0 and velocity >= accentThresh then
       return true
@@ -2902,8 +2895,7 @@ function isBeamingOverRests(qn)
   if not qn then
     debug_printStack()
     end
-  local ppqpos = reaper.MIDI_GetPPQPosFromProjQN(drumTake, qn)
-  local index = findIndexInListEqualOrLessThan(beamOverRestsTextEvtList, ppqpos, 1)
+  local index = findIndexInListEqualOrLessThan(beamOverRestsTextEvtList, qn, 1)
   return beamOverRestsTextEvtList[index][2]
   end
   
@@ -2934,19 +2926,12 @@ function getChordVoiceIndex(chord)
 
 function getSustainMIDINoteNum(voiceIndex)
   for midiNoteNum=0, 127 do
-    if isLaneOverride(midiNoteNum) and getLaneOverrideNameAndVoiceIndex(midiNoteNum) == "sustain" .. voiceIndex then
+    if getNoteName(midiNoteNum) == "sustain" .. voiceIndex then
       return midiNoteNum
       end
     end
   end
 
-function getYPosOffset(offset)
-  if not offset then
-    offset = 0
-    end
-  return offset * STAFFSPACEHEIGHT
-  end
-  
 function doesChordHaveArticulation(chord, articulationName)
   local chordGlobalData = chord[1]
   local chordArticulationList = chordGlobalData[CHORDGLOBALDATAINDEX_ARTICULATIONLIST]
@@ -4473,104 +4458,115 @@ function getMeasureTextEvents()
     
   ---
   
+  END_TEXT_EVT_QN = nil
+  
   local _, _, _, textCount = reaper.MIDI_CountEvts(eventsTake)
   for textEvtID=0, textCount-1 do
     local _, _, _, ppqpos, evtType, msg = reaper.MIDI_GetTextSysexEvt(eventsTake, textEvtID)
     local qn = getQNFromPPQPOS(eventsTake, ppqpos)
     local time = reaper.MIDI_GetProjTimeFromPPQPos(eventsTake, ppqpos)
 
-    if evtType == TEXT_EVENT and ppqpos >= startEvtPPQPOS and ppqpos < endEvtPPQPOS then
-      if ppqpos ~= currentPPQPOS then
-        if isAtMeasure then --process previous measure values
-          if timeSigNum == "default" then
-            isMeasureOverride = false
-            timeSigNum, timeSigDenom = getDefaultTimeSigNumDenom(currentMeasureListIndex)
-          elseif timeSigDenom then
-            isMeasureOverride = true
-          else
-            timeSigNum, timeSigDenom = getDefaultTimeSigNumDenom(currentMeasureListIndex)
-            end
-          
-          if not beamGroupings then
-            beamGroupings = getDefaultBeamGroupingsStr(currentMeasureListIndex, timeSigNum, timeSigDenom)
-            end
-          if not secondaryBeamGroupings then
-            secondaryBeamGroupings = getDefaultSecondaryBeamGroupingsStr(timeSigNum, timeSigDenom)
-            end
-          if not quantizeStr or quantizeStr == "default" then
-            quantizeStr = getDefaultQuantizeStr()
-            end
+    if evtType == TEXT_EVENT then
+      if ppqpos >= startEvtPPQPOS and ppqpos < endEvtPPQPOS then
+        if ppqpos ~= currentPPQPOS then
+          if isAtMeasure then --process previous measure values
+            if timeSigNum == "default" then
+              isMeasureOverride = false
+              timeSigNum, timeSigDenom = getDefaultTimeSigNumDenom(currentMeasureListIndex)
+            elseif timeSigDenom then
+              isMeasureOverride = true
+            else
+              timeSigNum, timeSigDenom = getDefaultTimeSigNumDenom(currentMeasureListIndex)
+              end
             
-          local currentTable = measureList[currentMeasureListIndex]
+            if not beamGroupings then
+              beamGroupings = getDefaultBeamGroupingsStr(currentMeasureListIndex, timeSigNum, timeSigDenom)
+              end
+            if not secondaryBeamGroupings then
+              secondaryBeamGroupings = getDefaultSecondaryBeamGroupingsStr(timeSigNum, timeSigDenom)
+              end
+            if not quantizeStr or quantizeStr == "default" then
+              quantizeStr = getDefaultQuantizeStr()
+              end
+              
+            local currentTable = measureList[currentMeasureListIndex]
+            
+            currentTable[MEASURELISTINDEX_TIMESIGNUM] = timeSigNum
+            currentTable[MEASURELISTINDEX_TIMESIGDENOM] = timeSigDenom
+            currentTable[MEASURELISTINDEX_BEAMGROUPINGS] = beamGroupings
+            currentTable[MEASURELISTINDEX_SECONDARYBEAMGROUPINGS] = secondaryBeamGroupings
+            currentTable[MEASURELISTINDEX_QUANTIZESTR] = quantizeStr
+            
+            updateRecentBeamGrouping(timeSigNum, timeSigDenom, beamGroupings, secondaryBeamGroupings)
+            end
           
-          currentTable[MEASURELISTINDEX_TIMESIGNUM] = timeSigNum
-          currentTable[MEASURELISTINDEX_TIMESIGDENOM] = timeSigDenom
-          currentTable[MEASURELISTINDEX_BEAMGROUPINGS] = beamGroupings
-          currentTable[MEASURELISTINDEX_SECONDARYBEAMGROUPINGS] = secondaryBeamGroupings
-          currentTable[MEASURELISTINDEX_QUANTIZESTR] = quantizeStr
-          
-          updateRecentBeamGrouping(timeSigNum, timeSigDenom, beamGroupings, secondaryBeamGroupings)
+          --update to new measure
+          currentPPQPOS = ppqpos
+          timeSigNum, timeSigDenom, beamGroupings, secondaryBeamGroupings, quantizeStr = nil, nil, nil, nil, nil, nil
+          isAtMeasure = false
+          while currentMeasureListIndex <= #measureList do
+            local measurePPQPOS = measureList[currentMeasureListIndex][MEASURELISTINDEX_PPQPOS]
+            if currentPPQPOS == measurePPQPOS then
+              isAtMeasure = true
+              break
+              end
+            if currentPPQPOS < measurePPQPOS then
+              throwError("Measure text event not aligned with measure! " .. currentMeasureListIndex)
+              end
+            if currentPPQPOS > measurePPQPOS then
+              currentMeasureListIndex = currentMeasureListIndex + 1
+              end
+            end
           end
-        
-        --update to new measure
-        currentPPQPOS = ppqpos
-        timeSigNum, timeSigDenom, beamGroupings, secondaryBeamGroupings, quantizeStr = nil, nil, nil, nil, nil, nil
-        isAtMeasure = false
-        while currentMeasureListIndex <= #measureList do
-          local measurePPQPOS = measureList[currentMeasureListIndex][MEASURELISTINDEX_PPQPOS]
-          if currentPPQPOS == measurePPQPOS then
-            isAtMeasure = true
-            break
+          
+        local spaceIndex = string.find(msg, " ")
+        if evtType == TEXT_EVENT and spaceIndex and isAtMeasure then
+          local header = string.sub(msg, 1, spaceIndex-1)
+          local val = string.sub(msg, spaceIndex+1, #msg)
+          if tonumber(val) then
+            val = tonumber(val)
             end
-          if currentPPQPOS < measurePPQPOS then
-            throwError("Measure text event not aligned with measure! " .. currentMeasureListIndex)
+          
+          if header == "timesig" then
+            if val == "default" then
+              timeSigNum = val
+            else
+              local slashIndex = string.find(val, "/")
+              if slashIndex then
+                local testNum = tonumber(string.sub(val, 1, slashIndex-1))
+                local testDenom = tonumber(string.sub(val, slashIndex+1, #val))
+                if testNum and testDenom and floor(testNum) == testNum and floor(testDenom) == testDenom and isInTable(VALID_RHYTHM_DENOM_LIST, testDenom) then
+                  timeSigNum = floor(testNum)
+                  timeSigDenom = floor(testDenom)
+                  end
+                end
+              if not timeSigNum or not timeSigDenom then
+                error("Invalid time signature (no slash)!")
+                end
+              end
             end
-          if currentPPQPOS > measurePPQPOS then
-            currentMeasureListIndex = currentMeasureListIndex + 1
+          
+          if header == "beamgroupings" then
+            beamGroupings = val
+            end
+          if header == "secondarybeamgroupings" then
+            secondaryBeamGroupings = val
+            end
+          if header == "quantize" then
+            quantizeStr = val
             end
           end
         end
-        
-      local spaceIndex = string.find(msg, " ")
-      if evtType == TEXT_EVENT and spaceIndex and isAtMeasure then
-        local header = string.sub(msg, 1, spaceIndex-1)
-        local val = string.sub(msg, spaceIndex+1, #msg)
-        if tonumber(val) then
-          val = tonumber(val)
-          end
-        
-        if header == "timesig" then
-          if val == "default" then
-            timeSigNum = val
-          else
-            local slashIndex = string.find(val, "/")
-            if slashIndex then
-              local testNum = tonumber(string.sub(val, 1, slashIndex-1))
-              local testDenom = tonumber(string.sub(val, slashIndex+1, #val))
-              if testNum and testDenom and floor(testNum) == testNum and floor(testDenom) == testDenom and isInTable(VALID_RHYTHM_DENOM_LIST, testDenom) then
-                timeSigNum = floor(testNum)
-                timeSigDenom = floor(testDenom)
-                end
-              end
-            if not timeSigNum or not timeSigDenom then
-              error("Invalid time signature (no slash)!")
-              end
-            end
-          end
-        
-        if header == "beamgroupings" then
-          beamGroupings = val
-          end
-        if header == "secondarybeamgroupings" then
-          secondaryBeamGroupings = val
-          end
-        if header == "quantize" then
-          quantizeStr = val
-          end
+      if msg == "[end]" then
+        END_TEXT_EVT_QN = qn
         end
       end
     end
   
+  if not END_TEXT_EVT_QN then
+    throwError("[end] text event not found!")
+    end
+    
   --TODO: measure 1 should always have everything
   local currentTimeSigNum, currentTimeSigDenom, currentBeamGroupings, currentSecondaryBeamGroupings, currentQuantizeStr
   for measureIndex=1, #measureList do
@@ -5229,23 +5225,6 @@ function getStaffLinePosition(staffLine, isSpaceAbove)
   return pos
   end
 
-function getNotationValue(noteData, header)
-  local notationStr = noteData[NOTELISTINDEX_NOTATIONTEXT]
-  if not notationStr then return end
-  
-  local values = separateString(notationStr)
-  local headerWithUnderscore = header .. "_"
-  for x=1, #values do
-    local value = values[x]
-    if value == header then
-      return true
-      end
-    if string.sub(value, 1, #headerWithUnderscore) == headerWithUnderscore then
-      return string.sub(value, #headerWithUnderscore+1, #value)
-      end
-    end
-  end
-
 function getTupletImagesAndBoundaries(tupletNum, tupletDenom, showColon)
   local tupletStr = tostring(tupletNum)
   if showColon then
@@ -5632,8 +5611,6 @@ function getRhythmOverride(startQN, endQN, beatTable, timeSigDenom, voiceIndex, 
     end
   tupletFactorNum, tupletFactorDenom = simplifyFraction(tupletFactorNum, tupletFactorDenom)
   
-  --reaper.ShowConsoleMsg("TEST: " .. rhythmNum .. "/" .. rhythmDenom .. " " .. tupletFactorNum .. "*" .. tupletFactorDenom .. "\n")
-  
   return rhythmNum, rhythmDenom, tupletFactorNum, tupletFactorDenom, hasDot
   end
 
@@ -5653,7 +5630,6 @@ function getStaffLinePositions()
       local staffLineXMin = NOTATION_XMIN
       local staffLineXMax = ENDMEASUREXMAX-1-reaper.ImGui_GetScrollX(ctx)
       tableInsert(list, {staffLineXMin, staffLineXMax, staffLineYPos, color})
-      --addToGameData("notation", {"staffline", nil, nil, staffLineXMin, staffLineYPos, staffLineXMax, staffLineYPos})
       end
     end
   
@@ -5953,7 +5929,7 @@ function isNoteInsideTuplet(startQN, voiceIndex)
   return false
   end
   
-function getMeasureNoteList(measureIndex, voiceIndex) --TODO: include rests
+function getMeasureNoteList(measureIndex, voiceIndex)
   local measureStartPPQPOS, measureEndPPQPOS, _, measureQNStart, measureQNEnd, _, timeSigNum, timeSigDenom, beatTable, _, _, quantizeNum, quantizeDenom, quantizeTupletFactorNum, quantizeTupletFactorDenom, quantizeModifier, restOffsets, qnTickTableBothVoices = getMeasureData(measureIndex)
   local prevMeasureStartPPQPOS, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, prevQNTickTableBothVoices = getMeasureData(measureIndex-1)
   local _, nextMeasureEndPPQPOS, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, nextQNTickTableBothVoices = getMeasureData(measureIndex+1)
@@ -7226,6 +7202,7 @@ function processMeasure(measureIndex, isActiveMeasure)
           
           local noteID = noteData[NOTELISTINDEX_NOTEID]
           local noteStartPPQPOS = noteData[NOTELISTINDEX_STARTPPQPOS]
+          local noteStartQN = noteData[NOTELISTINDEX_STARTQN]
           local notationLabel = noteData[NOTELISTINDEX_NOTEHEAD]
           local notationPos = noteData[NOTELISTINDEX_STAFFLINE]
           local noteArticulation = noteData[NOTELISTINDEX_ARTICULATION]
@@ -7236,7 +7213,7 @@ function processMeasure(measureIndex, isActiveMeasure)
           
           local isGhost = isNoteGhost(noteData)
           
-          local index = findIndexInListEqualOrLessThan(accentThresholdTextEvtList, noteStartPPQPOS, 1)
+          local index = findIndexInListEqualOrLessThan(accentThresholdTextEvtList, noteStartQN, 1)
           local accentThresh = accentThresholdTextEvtList[index][2]
           local isAccent = (accentThresh >= 0 and velocity >= accentThresh)
           if isAccent and not isInTable(chordArticulationList, "accent") then
@@ -7502,9 +7479,9 @@ function processMeasure(measureIndex, isActiveMeasure)
           local drawBeamState = chord[CHORDGLOBALDATAINDEX_DRAWBEAMSTATE]
           if not drawBeamState then
             local img = getImageFromList(flagLabel)
+            local imgSizeX, imgSizeY = getImageSize(flagLabel)
             
-            if img then
-              local imgSizeX, imgSizeY = getImageSize(flagLabel)
+            if imgSizeX then
               local imgAspectRatio = imgSizeX/imgSizeY
               
               local xMin = stemXPos
@@ -7892,7 +7869,6 @@ function processMeasure(measureIndex, isActiveMeasure)
             end
           
           local xPos = getQNXPos(qn, true)
-          local offset = getYPosOffset(dynamicsData[DYNAMICLISTINDEX_OFFSET])
           local startPPQPOS = dynamicsData[DYNAMICLISTINDEX_STARTPPQPOS]
           
           if isGradualDynamic(dynamic) then
@@ -7903,18 +7879,17 @@ function processMeasure(measureIndex, isActiveMeasure)
               local prevStartQN = prevDynamicsData[DYNAMICLISTINDEX_STARTQN]
               local prevEndQN = prevDynamicsData[DYNAMICLISTINDEX_ENDQN]
               local prevDynamic = prevDynamicsData[DYNAMICLISTINDEX_TYPE]
-              local prevOffset = getYPosOffset(prevDynamicsData[DYNAMICLISTINDEX_OFFSET])
               
-              addToEventList({nil, prevStartQN, "dynamic_hairpin", currentGradualDynamicXMin, DYNAMICCENTERY-DYNAMICSIZEY/2+prevOffset, xPos, DYNAMICCENTERY+DYNAMICSIZEY/2+prevOffset, DYNAMICCENTERY+prevOffset, prevStartPPQPOS, prevEndPPQPOS, prevDynamicsData[DYNAMICLISTINDEX_OFFSET], prevDynamic})
+              addToEventList({nil, prevStartQN, "dynamic_hairpin", currentGradualDynamicXMin, DYNAMICCENTERY-DYNAMICSIZEY/2, xPos, DYNAMICCENTERY+DYNAMICSIZEY/2, DYNAMICCENTERY, prevStartPPQPOS, prevEndPPQPOS, 0, prevDynamic})
               currentGradualDynamicXMin = nil
             else
               currentGradualDynamicXMin = xPos
               end
             
-            addToEventList({nil, qn, "dynamic_hairpin_game", xPos, DYNAMICCENTERY+offset, xPos, DYNAMICCENTERY+offset, dynamic})
+            addToEventList({nil, qn, "dynamic_hairpin_game", xPos, DYNAMICCENTERY, xPos, DYNAMICCENTERY, dynamic})
           else
             local sizeX, yMin, yMax, img, imgFileName = getDynamicImageData(dynamic)
-            addToEventList({nil, qn, "dynamic_sprite", xPos, yMin+offset, xPos+sizeX, yMax+offset, nil, startPPQPOS, dynamicsData[DYNAMICLISTINDEX_OFFSET], img, imgFileName})
+            addToEventList({nil, qn, "dynamic_sprite", xPos, yMin, xPos+sizeX, yMax, nil, startPPQPOS, 0, img, imgFileName})
             end
           end
         end
@@ -7929,8 +7904,7 @@ function processMeasure(measureIndex, isActiveMeasure)
             end
       
           local xPos = getQNXPos(qn, true)
-          local offset = getYPosOffset(staffTextData[STAFFTEXTLISTINDEX_OFFSET])
-          local yPos = getStaffLinePosition(MAXSTAFFLINE-2) + offset
+          local yPos = getStaffLinePosition(MAXSTAFFLINE-2)
 
           addToEventList({nil, qn, "staffText", xPos, yPos, xPos, yPos, x})
           end
@@ -7972,7 +7946,7 @@ function processMeasure(measureIndex, isActiveMeasure)
         addToGameData("notation", {"multirest_rect", nil, nil, xMin, rectYMin, xMax, rectYMax, beginningMeasureStartTime})
         
         addToNotationDrawList({"multirest_line", xMin, xMin, yMin, yMax})
-        addToGameData("notation", {"multirest_line", beginningMeasureQN, nil, xMin, yMin, xMin, yMax})
+        addToGameData("notation", {"multirest_line", qnToTimeFromTempoMap(beginningMeasureQN), nil, xMin, yMin, xMin, yMax})
         addToNotationDrawList({"multirest_line", xMax, xMax, yMin, yMax})
         addToGameData("notation", {"multirest_line", nil, nil, xMax, yMin, xMax, yMax})
         
@@ -8457,7 +8431,7 @@ function processMeasure(measureIndex, isActiveMeasure)
           addToNotationDrawList({category, xMin, xMax, yMin, yMax, img, chord, chordNoteIndex, isRhythmOverride, currentRhythmWithoutTuplets, maxRhythmWithoutTuplets, minBeat, maxBeat, tupletFactorNum, tupletFactorDenom, beatTable, timeSigNum, timeSigDenom, fakeChord})
           local hasTieInt
           if hasTie then hasTieInt = 1 else hasTieInt = 0 end
-          addToGameData("notation", {"notehead", qnQuantized, imgFileName, xMin, yMin, xMax, yMax, voiceIndex .. hasTieInt .. noteID})
+          addToGameData("notation", {"notehead", qnToTimeFromTempoMap(qnQuantized), imgFileName, xMin, yMin, xMax, yMax, voiceIndex .. hasTieInt .. noteID})
           end
         if category == "gracenotehead" then
           local noteID = data[8]
@@ -8467,7 +8441,7 @@ function processMeasure(measureIndex, isActiveMeasure)
           local chordNoteIndex = data[12]
           addToNotationDrawList({category, xMin, xMax, yMin, yMax, img, chord, chordNoteIndex})
           local hasTieInt = 0
-          addToGameData("notation", {"notehead", qnQuantized, imgFileName, xMin, yMin, xMax, yMax, voiceIndex .. hasTieInt .. noteID})
+          addToGameData("notation", {"notehead", qnToTimeFromTempoMap(qnQuantized), imgFileName, xMin, yMin, xMax, yMax, voiceIndex .. hasTieInt .. noteID})
           end
         if category == "flag" then
           local img = data[8]
@@ -8491,7 +8465,7 @@ function processMeasure(measureIndex, isActiveMeasure)
           local timeSigDenom = data[20]
           local measureIndex = data[21]
           addToNotationDrawList({category, xMin, xMax, yMin, yMax, img, voiceIndex, isRhythmOverride, currentRhythmWithoutTuplets, maxRhythmWithoutTuplets, minBeat, maxBeat, tupletFactorNum, tupletFactorDenom, beatTable, timeSigNum, timeSigDenom, measureIndex})
-          addToGameData("notation", {"rest", qnQuantized, imgFileName, xMin, yMin, xMax, yMax, voiceIndex})
+          addToGameData("notation", {"rest", qnToTimeFromTempoMap(qnQuantized), imgFileName, xMin, yMin, xMax, yMax, voiceIndex})
           end
         if category == "dot" then
           local dotCenterX = xMin + DOTRADIUS
@@ -8825,7 +8799,6 @@ function processMeasure(measureIndex, isActiveMeasure)
           end
         if category == "tie" then
           addToNotationDrawList({"tie", xMin, xMax, yMin, yMax, voiceIndex})
-          --addToGameData("notation", {"tie", nil, nil, xMin, yMin, xMax, yMax})
           end
         end
       end
@@ -9691,9 +9664,11 @@ function drawNotation()
       end
     for x=1, #notationLayer_measureNumber do
       local data = notationLayer_measureNumber[x]
-      local xPos = data[2]
+      local centerX = data[2]
       local text = data[4]
   
+      local textSizeX = reaper.ImGui_CalcTextSize(ctx, text)
+      local xPos = centerX - textSizeX/2
       local yPos = getStaffLinePosition(2)-notationWindowY - 20
       
       reaper.ImGui_PushFont(ctx, measureNumberFont)
@@ -9768,21 +9743,11 @@ function drawNotation()
         end
       
       if selected then
-        local offsetChange
-        if isUpArrowPressed then
-          offsetChange = -1
-          end
-        if isDownArrowPressed then
-          offsetChange = 1
-          end
-        if offsetChange then
-          local textEvtID = getNotationTextEventID(startPPQPOS, 0, DYNAMICSMIDINOTENUM)
-          setNotationTextEventParameter(startPPQPOS, 0, DYNAMICSMIDINOTENUM, "offset", round(offset+offsetChange))
-          setRefreshState(REFRESHSTATE_KEEPSELECTIONS)
-          end
+        --used to be offset change
         end
       end
     for x=1, #notationLayer_staffText do
+      --[[
       reaper.ImGui_PushFont(ctx, staffTextFont)
       
       local data = notationLayer_staffText[x]
@@ -9841,6 +9806,7 @@ function drawNotation()
         end
       
       reaper.ImGui_PopFont(ctx)
+      --]]
       end
     
     --hide scrolling notes
@@ -9859,7 +9825,6 @@ function drawNotation()
       local img = data[6]
       local imgFileName = data[7]
       addImage(drawList, img, xMin, yMin, xMax, yMax, 0, 0, 1, 1)
-      --addToGameData("notation", {"clef", nil, imgFileName, xMin, yMin, xMax, yMax})
       end
     end
   
@@ -11081,6 +11046,7 @@ function isLaneOverride(midiNoteNum)
   end
   
 function getNoteTable(midiNoteNum)
+  debug_printStack()
   return configList[midiNoteNum+1]
   end
 
@@ -11235,18 +11201,6 @@ function setSpecialType(midiNoteNum, val)
   setTextSysexEvt(drumTake, textEvtID, nil, nil, nil, evtType, msg)
   end
 
-function hasNotationText(take, noteID)
-  local _, _, _, startPPQPOS, endPPQPOS, channel, midiNoteNum = reaper.MIDI_GetNote(take, noteID)
-  local notationTextEvtID = getNotationTextEventID(startPPQPOS, channel, midiNoteNum)
-  if notationTextEvtID then
-    local _, _, _, _, _, msg = reaper.MIDI_GetTextSysexEvt(take, notationTextEvtID)
-    if string.find(msg, "text ") then
-      return true
-      end
-    end
-  return false
-  end
-
 function anyNonOverrideDrumNotesInRange(rangeStartPPQPOS, rangeEndPPQPOS, originalNoteID, originalVoiceIndex)
   local indexOffset = 0
   local doneWithLeftSide, doneWithRightSide
@@ -11302,7 +11256,7 @@ function storeConfigIntoMemory()
   
   configList = {}
   validHiHatCCs = {}
-  --MIDI_configMessages
+  
   for i, msg in ipairs(MIDI_configMessages) do
     local originalMsg = msg
     local newMsg = originalMsg --if missing state parameters
@@ -11515,6 +11469,36 @@ function updateMIDIEditor()
   reaper.PreventUIRefresh(-1)
   end
 
+function storeReaperTemposInTextFile()
+  local list = {}
+
+  local numMarkers = reaper.CountTempoTimeSigMarkers(0)
+  for i=0, numMarkers-1 do
+    local retval, time, measurepos, beatpos, bpm, timesig_num, timesig_denom, lineartempo = reaper.GetTempoTimeSigMarker(0, i)
+    if lineartempo then
+      throwError("No linear tempos allowed!", nil, time)
+      end
+      
+    local qn = roundFloatingPoint(reaper.TimeMap2_timeToQN(0, time))
+    local ppqpos = reaper.MIDI_GetPPQPosFromProjTime(drumTake, time)
+    tableInsert(list, "qn=" .. qn .. " ppqpos=" .. ppqpos .. " time=" .. time .. " bpm=" .. bpm)
+    
+    if i == numMarkers-1 then
+      if qn >= END_TEXT_EVT_QN then
+        throwError("Tempo markers found past the [end] event!")
+        end
+        
+      local ppqpos = reaper.MIDI_GetPPQPosFromProjQN(drumTake, END_TEXT_EVT_QN)
+      local time = reaper.MIDI_GetProjTimeFromPPQPos(drumTake, ppqpos)
+      tableInsert(list, "qn=" .. END_TEXT_EVT_QN .. " ppqpos=" .. ppqpos .. " time=" .. time .. " bpm=" .. bpm)
+      end
+    end
+  
+  local file = io.open(getTemposTextFilePath(), "w+")
+  file:write(table.concat(list, "\n"))
+  file:close()
+  end
+  
 function storeReaperEventsInTextFile()
   local masterTable = {}
   
@@ -11774,6 +11758,25 @@ function convertReaperNotesToTextFile()
   file:close()
   end
 
+function storeTemposIntoMemory()
+  local file = io.open(getTemposTextFilePath(), "r")
+  local fileText = file:read("*all")
+  file:close()
+  
+  tempoMap = {}
+  for line in fileText:gmatch("[^\r\n]+") do
+    local values = separateString(line)
+    
+    tableInsert(tempoMap, {})
+    local subTable = tempoMap[#tempoMap]
+    
+    subTable[TEMPOMAPINDEX_QN] = getValueFromTable(values, "qn")
+    subTable[TEMPOMAPINDEX_PPQPOS] = getValueFromTable(values, "ppqpos")
+    subTable[TEMPOMAPINDEX_TIME] = getValueFromTable(values, "time")
+    subTable[TEMPOMAPINDEX_BPM] = getValueFromTable(values, "bpm")
+    end
+  end
+  
 function storeEventsIntoMemory()
   local file = io.open(getEventsTextFilePath(), "r")
   local fileText = file:read("*all")
@@ -11890,11 +11893,6 @@ function storeMIDIIntoMemory()
     local data = chartBeatList[x]
     local time = data[BEATLISTINDEX_TIME]
     local beatType = data[BEATLISTINDEX_BEATTYPE]
-    
-    local colorVal = BEATLINE_COLOR_LIST[beatType+1]
-    local color = hexColor(colorVal, colorVal, colorVal)
-    local thickness = (beatType + 1) * 2
-  
     addToGameData("beatline", {time, beatType})
     end
   
@@ -11915,376 +11913,374 @@ function storeMIDIIntoMemory()
   accentThresholdTextEvtList = {}
   beamOverRestsTextEvtList = {}
   
-  if drumTake then
-    hhOverrideSegments, hhLaneValueList = {}, {}, {}
-    for x=1, #validHiHatCCs do
-      tableInsert(hhOverrideSegments, {})
-      end
+  hhOverrideSegments, hhLaneValueList = {}, {}, {}
+  for x=1, #validHiHatCCs do
+    tableInsert(hhOverrideSegments, {})
+    end
+  
+  for i, data in ipairs(MIDI_DRUMS_ccEvents) do
+    local ccNum = getValueFromTable(data, "number")
+    local channel = getValueFromTable(data, "channel")
     
-    for i, data in ipairs(MIDI_DRUMS_ccEvents) do
-      local ccNum = getValueFromTable(data, "number")
-      local channel = getValueFromTable(data, "channel")
+    local hhTableIndex = isInTable(validHiHatCCs, ccNum)
+    if channel == 1 and hhTableIndex then
+      local overrideSegmentTable = hhOverrideSegments[hhTableIndex]
+      local lastLaneSubTable = overrideSegmentTable[#overrideSegmentTable]
       
-      local hhTableIndex = isInTable(validHiHatCCs, ccNum)
-      if channel == 1 and hhTableIndex then
-        local overrideSegmentTable = hhOverrideSegments[hhTableIndex]
-        local lastLaneSubTable = overrideSegmentTable[#overrideSegmentTable]
-        
-        local time = getValueFromTable(data, "time")
-        local ccVal = getValueFromTable(data, "value")
-        
-        if ccVal >= 64 then
-          if #overrideSegmentTable == 0 or #lastLaneSubTable == 2 then
-            tableInsert(overrideSegmentTable, {time})
-            end
-        else
-          if #lastLaneSubTable == 1 then
-            lastLaneSubTable[2] = time
-            end
-          end
-        end
-      end
-    
-    for i, data in ipairs(MIDI_DRUMS_noteEvents) do
-      local noteID = getValueFromTable(data, "id")
-      local startPPQPOS = getValueFromTable(data, "ppqpos_start")
-      local endPPQPOS = getValueFromTable(data, "ppqpos_end")
-      local startQN = getValueFromTable(data, "qn_start")
-      local endQN = getValueFromTable(data, "qn_end")
-      local startTime = getValueFromTable(data, "time_start")
-      local endTime = getValueFromTable(data, "time_end")
-      local channel = getValueFromTable(data, "channel")
-      local midiNoteNum = getValueFromTable(data, "pitch")
-      local velocity = getValueFromTable(data, "velocity")
-      local notationTextEvtID = getValueFromTable(data, "text_event_id")
-      local notationTextEvtMsg = getValueFromTable(data, "text_event_message")
+      local time = getValueFromTable(data, "time")
+      local ccVal = getValueFromTable(data, "value")
       
-      if isLaneOverride(midiNoteNum) then
-        local laneType = getNoteType(midiNoteNum)
-        local voiceIndex = tonumber(string.sub(laneType, #laneType, #laneType))
-        
-        if laneType == "tuplet1" or laneType == "tuplet2" then
-          tableInsert(tupletListBothVoices[voiceIndex], {startPPQPOS, endPPQPOS, startQN, endQN, startTime, endTime, channel})
-          end
-          
-        if channel == 0 and (laneType == "rhythm1" or laneType == "rhythm2") then
-          if notationTextEvtMsg and string.find(notationTextEvtMsg, "text ") then
-            tableInsert(rhythmOverrideListBothVoices[voiceIndex], {startPPQPOS, endPPQPOS, startQN, endQN, startTime, endTime})
-            end
-          
-          if not anyNonOverrideDrumNotesInRange(startPPQPOS, endPPQPOS, noteID, voiceIndex) then
-            tableInsert(restListBothVoices[voiceIndex], {startPPQPOS, endPPQPOS, startQN, endQN, startTime, endTime})
-            end
-          end
-        
-        --TODO: collision between rhythm/tuplet and sustain
-        if channel == 0 and (laneType == "sustain1" or laneType == "sustain2") then
-          tableInsert(sustainListBothVoices[voiceIndex], {startPPQPOS, endPPQPOS, startQN, endQN, startTime, endTime})
-          end
-          
-        if channel == 0 and (laneType == "dynamics") and notationTextEvtMsg then
-          tableInsert(dynamicList, {startPPQPOS, endPPQPOS, startQN, endQN, startTime, endTime})
+      if ccVal >= 64 then
+        if #overrideSegmentTable == 0 or #lastLaneSubTable == 2 then
+          tableInsert(overrideSegmentTable, {time})
           end
       else
-        local noteName = getNoteName(midiNoteNum)
-        local hihatCC = getNoteProperty(midiNoteNum, "pedal")
+        if #lastLaneSubTable == 1 then
+          lastLaneSubTable[2] = time
+          end
+        end
+      end
+    end
+  
+  for i, data in ipairs(MIDI_DRUMS_noteEvents) do
+    local noteID = getValueFromTable(data, "id")
+    local startPPQPOS = getValueFromTable(data, "ppqpos_start")
+    local endPPQPOS = getValueFromTable(data, "ppqpos_end")
+    local startQN = getValueFromTable(data, "qn_start")
+    local endQN = getValueFromTable(data, "qn_end")
+    local startTime = getValueFromTable(data, "time_start")
+    local endTime = getValueFromTable(data, "time_end")
+    local channel = getValueFromTable(data, "channel")
+    local midiNoteNum = getValueFromTable(data, "pitch")
+    local velocity = getValueFromTable(data, "velocity")
+    local notationTextEvtID = getValueFromTable(data, "text_event_id")
+    local notationTextEvtMsg = getValueFromTable(data, "text_event_message")
+    
+    if isLaneOverride(midiNoteNum) then
+      local laneType = getNoteType(midiNoteNum)
+      local voiceIndex = tonumber(string.sub(laneType, #laneType, #laneType))
+      
+      if laneType == "tuplet1" or laneType == "tuplet2" then
+        tableInsert(tupletListBothVoices[voiceIndex], {startPPQPOS, endPPQPOS, startQN, endQN, startTime, endTime, channel})
+        end
         
-        local noteState = getNoteState(midiNoteNum, channel)
-        if noteState then
-          local notehead, staffLine, articulation = getNotationProperties(midiNoteNum, channel)
-          
-          tableInsert(noteList, {startPPQPOS, endPPQPOS, startQN, endQN, startTime, endTime, nil, channel, midiNoteNum, noteState, nil, nil, nil, 1, nil, nil, nil, notehead, staffLine, articulation, velocity, noteID})
-          
-          --process sustains and chokes?
+      if channel == 0 and (laneType == "rhythm1" or laneType == "rhythm2") then
+        if notationTextEvtMsg and string.find(notationTextEvtMsg, "text ") then
+          tableInsert(rhythmOverrideListBothVoices[voiceIndex], {startPPQPOS, endPPQPOS, startQN, endQN, startTime, endTime})
+          end
         
-          local hhTableIndex = isInTable(validHiHatCCs, hihatCC)
-          if hhTableIndex then
-            local laneIndex
-            for x=1, #hhLaneValueList do
-              local subTable = hhLaneValueList[x]
-              if subTable[1] == hihatCC then
-                laneIndex = x
-                break
-                end
-              end
-            if not laneIndex then
-              tableInsert(hhLaneValueList, {hihatCC})
-              laneIndex = #hhLaneValueList
-              end
-            local subTable = hhLaneValueList[laneIndex]
-            local prevCCVal
-            if #subTable == 1 then
-              prevCCVal = 0
-            else
-              prevCCVal = subTable[#subTable][2]
-              end
-            if noteState == "stomp" then
-              tableInsert(subTable, {startTime, 0, false})
-            elseif noteState == "lift" then
-              tableInsert(subTable, {startTime, 127, false})
-            elseif noteState == "splash" then
-              tableInsert(subTable, {startTime, 0, true})
-              tableInsert(subTable, {startTime+0.5, 127, false})
-            elseif noteState == "closed" then
-              tableInsert(subTable, {startTime, 0, false})
-            elseif noteState == "open" then
-              tableInsert(subTable, {startTime, 127, false})
-            elseif noteState == "halfopen" then
-              tableInsert(subTable, {startTime, 64, false})
-            else
-              throwError("No valid hi-hat state! " .. noteState, nil, startTime)
+        if not anyNonOverrideDrumNotesInRange(startPPQPOS, endPPQPOS, noteID, voiceIndex) then
+          tableInsert(restListBothVoices[voiceIndex], {startPPQPOS, endPPQPOS, startQN, endQN, startTime, endTime})
+          end
+        end
+      
+      --TODO: collision between rhythm/tuplet and sustain
+      if channel == 0 and (laneType == "sustain1" or laneType == "sustain2") then
+        tableInsert(sustainListBothVoices[voiceIndex], {startPPQPOS, endPPQPOS, startQN, endQN, startTime, endTime})
+        end
+        
+      if channel == 0 and (laneType == "dynamics") and notationTextEvtMsg then
+        tableInsert(dynamicList, {startPPQPOS, endPPQPOS, startQN, endQN, startTime, endTime})
+        end
+    else
+      local noteName = getNoteName(midiNoteNum)
+      local hihatCC = getNoteProperty(midiNoteNum, "pedal")
+      
+      local noteState = getNoteState(midiNoteNum, channel)
+      if noteState then
+        local notehead, staffLine, articulation = getNotationProperties(midiNoteNum, channel)
+        
+        tableInsert(noteList, {startPPQPOS, endPPQPOS, startQN, endQN, startTime, endTime, nil, channel, midiNoteNum, noteState, nil, nil, nil, 1, nil, nil, nil, notehead, staffLine, articulation, velocity, noteID})
+        
+        --process sustains and chokes?
+      
+        local hhTableIndex = isInTable(validHiHatCCs, hihatCC)
+        if hhTableIndex then
+          local laneIndex
+          for x=1, #hhLaneValueList do
+            local subTable = hhLaneValueList[x]
+            if subTable[1] == hihatCC then
+              laneIndex = x
+              break
               end
             end
-          
-        else
-          throwError("Invalid note (does not match any current state!) " .. midiNoteNum .. " " .. channel, nil, startTime)
+          if not laneIndex then
+            tableInsert(hhLaneValueList, {hihatCC})
+            laneIndex = #hhLaneValueList
+            end
+          local subTable = hhLaneValueList[laneIndex]
+          local prevCCVal
+          if #subTable == 1 then
+            prevCCVal = 0
+          else
+            prevCCVal = subTable[#subTable][2]
+            end
+          if noteState == "stomp" then
+            tableInsert(subTable, {startTime, 0, false})
+          elseif noteState == "lift" then
+            tableInsert(subTable, {startTime, 127, false})
+          elseif noteState == "splash" then
+            tableInsert(subTable, {startTime, 0, true})
+            tableInsert(subTable, {startTime+0.5, 127, false})
+          elseif noteState == "closed" then
+            tableInsert(subTable, {startTime, 0, false})
+          elseif noteState == "open" then
+            tableInsert(subTable, {startTime, 127, false})
+          elseif noteState == "halfopen" then
+            tableInsert(subTable, {startTime, 64, false})
+          else
+            throwError("No valid hi-hat state! " .. noteState, nil, startTime)
+            end
+          end
+        
+      else
+        throwError("Invalid note (does not match any current state!) " .. midiNoteNum .. " " .. channel, nil, startTime)
+        end
+      end
+    end
+  
+  --clear space for overrides before adding them
+  for x=1, #hhLaneValueList do
+    local subTable = hhLaneValueList[x]
+    local overrideSegmentTable = hhOverrideSegments[x]
+    --local overrideSegmentIndex = #overrideSegmentTable
+    for y=#subTable, 2, -1 do
+      local data = subTable[y]
+      local time = data[1]
+      for z=1, #overrideSegmentTable do
+        local overrideStartTime = overrideSegmentTable[z][1]
+        local overrideEndTime = overrideSegmentTable[z][2]
+        if time >= overrideStartTime and (not overrideEndTime or time < overrideEndTime) then
+          table.remove(subTable, y)
+          break
           end
         end
       end
     
-    --clear space for overrides before adding them
-    for x=1, #hhLaneValueList do
-      local subTable = hhLaneValueList[x]
-      local overrideSegmentTable = hhOverrideSegments[x]
-      --local overrideSegmentIndex = #overrideSegmentTable
-      for y=#subTable, 2, -1 do
-        local data = subTable[y]
-        local time = data[1]
-        for z=1, #overrideSegmentTable do
-          local overrideStartTime = overrideSegmentTable[z][1]
-          local overrideEndTime = overrideSegmentTable[z][2]
-          if time >= overrideStartTime and (not overrideEndTime or time < overrideEndTime) then
-            table.remove(subTable, y)
+    --check for CC points at start of all overrides
+    for y=1, #overrideSegmentTable do
+      local overrideStartTime = overrideSegmentTable[y][1]
+      local foundPoint = false
+      
+      --TODO: binary optimization
+      for i, data in ipairs(MIDI_DRUMS_ccEvents) do
+        local ppqpos = getValueFromTable(data, "ppqpos")
+        local time = getValueFromTable(data, "time")
+        local channel = getValueFromTable(data, "channel")
+        local ccNum = getValueFromTable(data, "number")
+        local ccVal = getValueFromTable(data, "value")
+
+        local hhTableIndex = isInTable(validHiHatCCs, ccNum)
+        if channel == 0 and hhTableIndex == x then
+          if time == overrideStartTime then
+            foundPoint = true
+            break
+            end
+          if time > overrideStartTime then
             break
             end
           end
         end
       
-      --check for CC points at start of all overrides
+      if not foundPoint then
+        throwError("No hi-hat override start point!", nil, overrideStartTime)
+        end
+      end
+    end
+  
+  --loop through override CC ch0 points and check if they are in an override zone, then add
+  for i, data in ipairs(MIDI_DRUMS_ccEvents) do
+    local ppqpos = getValueFromTable(data, "ppqpos")
+    local time = getValueFromTable(data, "time")
+    local channel = getValueFromTable(data, "channel")
+    local ccNum = getValueFromTable(data, "number")
+    local ccVal = getValueFromTable(data, "value")
+    local shape = getValueFromTable(data, "shape")
+    
+    local hhTableIndex = isInTable(validHiHatCCs, ccNum)
+    if channel == 0 and hhTableIndex then
+      local overrideSegmentTable = hhOverrideSegments[hhTableIndex]
+      local subTable = hhLaneValueList[hhTableIndex]
+      
       for y=1, #overrideSegmentTable do
         local overrideStartTime = overrideSegmentTable[y][1]
-        local foundPoint = false
-        
-        --TODO: binary optimization
-        for i, data in ipairs(MIDI_DRUMS_ccEvents) do
-          local ppqpos = getValueFromTable(data, "ppqpos")
-          local time = getValueFromTable(data, "time")
-          local channel = getValueFromTable(data, "channel")
-          local ccNum = getValueFromTable(data, "number")
-          local ccVal = getValueFromTable(data, "value")
+        local overrideEndTime = overrideSegmentTable[y][2]
+        if time >= overrideStartTime and (not overrideEndTime or time < overrideEndTime) then
+          tableInsert(subTable, {time, ccVal, shape>0})
+          break
+          end
+        end
+      end
+    end
+  
+  --sort hi-hat subTables
+  local hihatCCs = {}
+  for hhTableIndex=1, #hhLaneValueList do
+    local hihatCC = hhLaneValueList[hhTableIndex][1]
+    tableInsert(hihatCCs, hihatCC)
+    table.remove(hhLaneValueList[hhTableIndex], 1)
+    end
+    
+  for hhTableIndex=1, #hhLaneValueList do
+    local subTable = hhLaneValueList[hhTableIndex]
+    table.sort(subTable, function(a, b)
+      return a[1] < b[1]
+      end)
+    end
+  
+  --add to game data
+  for hhTableIndex=1, #hhLaneValueList do
+    local subTable = hhLaneValueList[hhTableIndex]
+    
+    local hihatCC = hihatCCs[hhTableIndex]
+    local values = {}
+    
+    for x=1, #subTable do
+      local data = subTable[x]
+      
+      local time = data[1]
+      local ccVal = data[2]
+      local isGradient = data[3]
+      
+      local gradientInt
+      if isGradient then gradientInt = 1 else gradientInt = 0 end
+      
+      tableInsert(values, time)
+      tableInsert(values, ccVal)
+      tableInsert(values, gradientInt)
+      end
+    
+    if #subTable > 1 and subTable[2][1] ~= 0 then
+      table.insert(values, 1, 0)
+      table.insert(values, 1, 0)
+      table.insert(values, 1, 0)
+      end
+    
+    table.insert(values, 1, "cc=" .. hihatCC)
+    
+    addToGameData("hihatpedal", values)
+    end
+  
+  --print override segments
+  local function printOverrideSegments()
+    for hhTableIndex=1, #hhLaneValueList do
+      reaper.ShowConsoleMsg("----------HI-HAT INDEX " .. hhTableIndex .. "----------\n")
+      
+      local subTable = hhLaneValueList[hhTableIndex]
 
-          local hhTableIndex = isInTable(validHiHatCCs, ccNum)
-          if channel == 0 and hhTableIndex == x then
-            if time == overrideStartTime then
-              foundPoint = true
-              break
-              end
-            if time > overrideStartTime then
-              break
-              end
-            end
-          end
-        
-        if not foundPoint then
-          throwError("No hi-hat override start point!", nil, overrideStartTime)
-          end
-        end
-      end
-    
-    --loop through override CC ch0 points and check if they are in an override zone, then add
-    for i, data in ipairs(MIDI_DRUMS_ccEvents) do
-      local ppqpos = getValueFromTable(data, "ppqpos")
-      local time = getValueFromTable(data, "time")
-      local channel = getValueFromTable(data, "channel")
-      local ccNum = getValueFromTable(data, "number")
-      local ccVal = getValueFromTable(data, "value")
-      local shape = getValueFromTable(data, "shape")
-      
-      local hhTableIndex = isInTable(validHiHatCCs, ccNum)
-      if channel == 0 and hhTableIndex then
-        local overrideSegmentTable = hhOverrideSegments[hhTableIndex]
-        local subTable = hhLaneValueList[hhTableIndex]
-        
-        for y=1, #overrideSegmentTable do
-          local overrideStartTime = overrideSegmentTable[y][1]
-          local overrideEndTime = overrideSegmentTable[y][2]
-          if time >= overrideStartTime and (not overrideEndTime or time < overrideEndTime) then
-            tableInsert(subTable, {time, ccVal, shape>0})
-            break
-            end
-          end
-        end
-      end
-    
-    --sort hi-hat subTables
-    local hihatCCs = {}
-    for hhTableIndex=1, #hhLaneValueList do
-      local hihatCC = hhLaneValueList[hhTableIndex][1]
-      tableInsert(hihatCCs, hihatCC)
-      table.remove(hhLaneValueList[hhTableIndex], 1)
-      end
-      
-    for hhTableIndex=1, #hhLaneValueList do
-      local subTable = hhLaneValueList[hhTableIndex]
-      table.sort(subTable, function(a, b)
-        return a[1] < b[1]
-        end)
-      end
-    
-    --add to game data
-    for hhTableIndex=1, #hhLaneValueList do
-      local subTable = hhLaneValueList[hhTableIndex]
-      
-      local hihatCC = hihatCCs[hhTableIndex]
-      local values = {}
-      
-      for x=1, #subTable do
+      for x=2, #subTable do
         local data = subTable[x]
-        
         local time = data[1]
         local ccVal = data[2]
         local isGradient = data[3]
-        
-        local gradientInt
-        if isGradient then gradientInt = 1 else gradientInt = 0 end
-        
-        tableInsert(values, time)
-        tableInsert(values, ccVal)
-        tableInsert(values, gradientInt)
-        end
-      
-      if #subTable > 1 and subTable[2][1] ~= 0 then
-        table.insert(values, 1, 0)
-        table.insert(values, 1, 0)
-        table.insert(values, 1, 0)
-        end
-      
-      table.insert(values, 1, "cc=" .. hihatCC)
-      
-      addToGameData("hihatpedal", values)
-      end
-    
-    --print override segments
-    local function printOverrideSegments()
-      for hhTableIndex=1, #hhLaneValueList do
-        reaper.ShowConsoleMsg("----------HI-HAT INDEX " .. hhTableIndex .. "----------\n")
-        
-        local subTable = hhLaneValueList[hhTableIndex]
-
-        for x=2, #subTable do
-          local data = subTable[x]
-          local time = data[1]
-          local ccVal = data[2]
-          local isGradient = data[3]
-          reaper.ShowConsoleMsg("(" .. time .. ", " .. ccVal .. ")")
-          if x < #subTable then
-            reaper.ShowConsoleMsg(", ")
-          else
-            reaper.ShowConsoleMsg("\n")
-            end
-          end
-        reaper.ShowConsoleMsg("\n")
-        end
-      end
-    
-    --printOverrideSegments()
-    --]]
-    
-    for i, data in ipairs(MIDI_DRUMS_textEvents) do
-      local ppqpos = getValueFromTable(data, "ppqpos")
-      local qn = getValueFromTable(data, "qn")
-      local time = getValueFromTable(data, "time")
-      local evtType = getValueFromTable(data, "event_type")
-      local msg = getValueFromTable(data, "message")
-      
-      if evtType == TEXT_EVENT then
-        if string.sub(msg, 1, 12) == "ghostthresh " then
-          local val = tonumber(string.sub(msg, 13, #msg))
-          if not val or val < 0 or val > 127 then
-            throwError("Invalid ghost note threshold!", nil, time)
-            end
-          tableInsert(ghostThresholdTextEvtList, {ppqpos, val})
-          end
-        if string.sub(msg, 1, 13) == "accentthresh " then
-          local val = tonumber(string.sub(msg, 14, #msg))
-          if not val then
-            throwError("Invalid accent note threshold!", nil, time)
-            end
-          tableInsert(accentThresholdTextEvtList, {ppqpos, val})
-          end
-        if string.sub(msg, 1, 14) == "beamoverrests " then
-          local val = string.sub(msg, 15, #msg)
-          if not (val == "on" or val == "off") then
-            throwError("Invalid beam over rests value!", nil, time)
-            end
-          if val == "on" then
-            val = true
-          else
-            val = false
-            end
-          tableInsert(beamOverRestsTextEvtList, {ppqpos, val})
-          end
-        if string.sub(msg, 1, 13) == "articulation_" then
-          local voiceIndex
-          if string.sub(msg, 14, 15) == "1 " then
-            voiceIndex = 1
-            end
-          if string.sub(msg, 14, 15) == "2 " then
-            voiceIndex = 2
-            end
-          local data = separateString(string.sub(msg, 16, #msg))
-          if not voiceIndex or not data then
-            throwError("Invalid articulation text event!", nil, time)
-            end
-          tableInsert(articulationListBothVoices[voiceIndex], {ppqpos, qn, textEvtID, data})
-          end
-        if string.sub(msg, 1, 5) == "beam_" then
-          local voiceIndex
-          if string.sub(msg, 6, 7) == "1 " then
-            voiceIndex = 1
-            end
-          if string.sub(msg, 6, 7) == "2 " then
-            voiceIndex = 2
-            end
-          local val = string.sub(msg, 8, #msg)
-          if not voiceIndex or not val then
-            throwError("Invalid beam text event!", nil, time)
-            end
-          tableInsert(beamOverrideListBothVoices[voiceIndex], {ppqpos, qn, textEvtID, val})
-          end
-        if string.sub(msg, 1, 1) == "\"" then
-          local endQuoteIndex = string.find(msg, "\"", 2)
-          if not endQuoteIndex then
-            throwError("No end quote for staff text event!", nil, time)
-            end
-          local text = string.sub(msg, 2, endQuoteIndex-1)
-          local values = separateString(string.sub(msg, endQuoteIndex+1, #msg))
-          local offset
-          for x=1, #values do
-            local value = values[x]
-            if string.sub(value, 1, 7) == "offset_" then
-              offset = tonumber(string.sub(value, 8, #value))
-              end
-            end
-          tableInsert(staffTextList, {ppqpos, qn, text, offset, textEvtID})
-          end
-        if string.sub(msg, 1, 12) == "restoffset1 " or string.sub(msg, 1, 12) == "restoffset2 " then
-          local voiceIndex = tonumber(string.sub(msg, 11, 11))
-          local offset = tonumber(string.sub(msg, 13, #msg))
-          tableInsert(restOffsetListBothVoices[voiceIndex], {ppqpos, qn, offset, textEvtID})
+        reaper.ShowConsoleMsg("(" .. time .. ", " .. ccVal .. ")")
+        if x < #subTable then
+          reaper.ShowConsoleMsg(", ")
+        else
+          reaper.ShowConsoleMsg("\n")
           end
         end
+      reaper.ShowConsoleMsg("\n")
       end
+    end
+  
+  --printOverrideSegments()
+  --]]
+  
+  for i, data in ipairs(MIDI_DRUMS_textEvents) do
+    local ppqpos = getValueFromTable(data, "ppqpos")
+    local qn = getValueFromTable(data, "qn")
+    local time = getValueFromTable(data, "time")
+    local evtType = getValueFromTable(data, "event_type")
+    local msg = getValueFromTable(data, "message")
     
-    if #ghostThresholdTextEvtList == 0 or ghostThresholdTextEvtList[1][1] > 0 then
-      table.insert(ghostThresholdTextEvtList, 1, {0, -1})
+    if evtType == TEXT_EVENT then
+      if string.sub(msg, 1, 12) == "ghostthresh " then
+        local val = tonumber(string.sub(msg, 13, #msg))
+        if not val or val < 0 or val > 127 then
+          throwError("Invalid ghost note threshold!", nil, time)
+          end
+        tableInsert(ghostThresholdTextEvtList, {qn, val})
+        end
+      if string.sub(msg, 1, 13) == "accentthresh " then
+        local val = tonumber(string.sub(msg, 14, #msg))
+        if not val then
+          throwError("Invalid accent note threshold!", nil, time)
+          end
+        tableInsert(accentThresholdTextEvtList, {qn, val})
+        end
+      if string.sub(msg, 1, 14) == "beamoverrests " then
+        local val = string.sub(msg, 15, #msg)
+        if not (val == "on" or val == "off") then
+          throwError("Invalid beam over rests value!", nil, time)
+          end
+        if val == "on" then
+          val = true
+        else
+          val = false
+          end
+        tableInsert(beamOverRestsTextEvtList, {qn, val})
+        end
+      if string.sub(msg, 1, 13) == "articulation_" then
+        local voiceIndex
+        if string.sub(msg, 14, 15) == "1 " then
+          voiceIndex = 1
+          end
+        if string.sub(msg, 14, 15) == "2 " then
+          voiceIndex = 2
+          end
+        local data = separateString(string.sub(msg, 16, #msg))
+        if not voiceIndex or not data then
+          throwError("Invalid articulation text event!", nil, time)
+          end
+        tableInsert(articulationListBothVoices[voiceIndex], {ppqpos, qn, textEvtID, data})
+        end
+      if string.sub(msg, 1, 5) == "beam_" then
+        local voiceIndex
+        if string.sub(msg, 6, 7) == "1 " then
+          voiceIndex = 1
+          end
+        if string.sub(msg, 6, 7) == "2 " then
+          voiceIndex = 2
+          end
+        local val = string.sub(msg, 8, #msg)
+        if not voiceIndex or not val then
+          throwError("Invalid beam text event!", nil, time)
+          end
+        tableInsert(beamOverrideListBothVoices[voiceIndex], {ppqpos, qn, textEvtID, val})
+        end
+      if string.sub(msg, 1, 1) == "\"" then
+        local endQuoteIndex = string.find(msg, "\"", 2)
+        if not endQuoteIndex then
+          throwError("No end quote for staff text event!", nil, time)
+          end
+        local text = string.sub(msg, 2, endQuoteIndex-1)
+        local values = separateString(string.sub(msg, endQuoteIndex+1, #msg))
+        local offset
+        for x=1, #values do
+          local value = values[x]
+          if string.sub(value, 1, 7) == "offset_" then
+            offset = tonumber(string.sub(value, 8, #value))
+            end
+          end
+        tableInsert(staffTextList, {ppqpos, qn, text, offset, textEvtID})
+        end
+      if string.sub(msg, 1, 12) == "restoffset1 " or string.sub(msg, 1, 12) == "restoffset2 " then
+        local voiceIndex = tonumber(string.sub(msg, 11, 11))
+        local offset = tonumber(string.sub(msg, 13, #msg))
+        tableInsert(restOffsetListBothVoices[voiceIndex], {ppqpos, qn, offset, textEvtID})
+        end
       end
-    if #accentThresholdTextEvtList == 0 or accentThresholdTextEvtList[1][1] > 0 then
-      table.insert(accentThresholdTextEvtList, 1, {0, 128})
-      end
-    if #beamOverRestsTextEvtList == 0 or beamOverRestsTextEvtList[1][1] > 0 then
-      table.insert(beamOverRestsTextEvtList, 1, {0, false})
-      end
+    end
+  
+  if #ghostThresholdTextEvtList == 0 or ghostThresholdTextEvtList[1][1] > 0 then
+    table.insert(ghostThresholdTextEvtList, 1, {0, -1})
+    end
+  if #accentThresholdTextEvtList == 0 or accentThresholdTextEvtList[1][1] > 0 then
+    table.insert(accentThresholdTextEvtList, 1, {0, 128})
+    end
+  if #beamOverRestsTextEvtList == 0 or beamOverRestsTextEvtList[1][1] > 0 then
+    table.insert(beamOverRestsTextEvtList, 1, {0, false})
     end
   
   addNotationStrToList()
@@ -12523,13 +12519,18 @@ function refreshNoteData(initial)
     _, DRUM_NOTECOUNT, DRUM_CCCOUNT, DRUM_TEXTCOUNT = reaper.MIDI_CountEvts(drumTake)
     _, EVENTS_NOTECOUNT, EVENTS_CCCOUNT, EVENTS_TEXTCOUNT = reaper.MIDI_CountEvts(eventsTake)
     
-    storeReaperEventsInTextFile() --only within REAPER
+    storeReaperEventsInTextFile() --only within REAPER - before ANYTHING else, convert reaper MIDI to text file
     
-    convertReaperNotesToTextFile() --before ANYTHING else, convert reaper MIDI to text file
+    storeReaperTemposInTextFile() --only within REAPER - before ANYTHING else, convert reaper MIDI to text file
+        
+    convertReaperNotesToTextFile() --only within REAPER - before ANYTHING else, convert reaper MIDI to text file
     
-    ---
+    --------------------------------
     
-    storeImageSizesIntoMemory() --TODO: eventually, pass this imgSizeList as a parameter in the function
+    --[[
+    storeImageSizesIntoMemory()
+    
+    storeTemposIntoMemory()
     
     defineNotationVariables()
     
@@ -12546,8 +12547,11 @@ function refreshNoteData(initial)
     processNotationMeasures()
     
     uploadGameData()
+    ]]--
     
-    compileChartToCurrentDrumKit()
+    --------------------------------
+    
+    runChartCompiler()
     end
     
   if currentRefreshState ~= REFRESHSTATE_NOTREFRESHING then
@@ -12626,6 +12630,10 @@ function defineTakes()
     if not reaper.TakeIsMIDI(take) then
       throwError("No MIDI take found on " .. validTrackName .. " media item!")
       end
+    
+    if getPPQResolution(take) ~= PPQ_RESOLUTION then
+      throwError("MIDI take must have a PPQ resolution of 960! (" .. validTrackName .. " media item)")
+      end
       
     local foundTake = false
     local textEvtID = 0
@@ -12650,6 +12658,52 @@ function defineTakes()
   
   drumTake, drumTrack, drumTrackID = defineTake(drumTrack, VALID_DRUMTRACKNAME)
   eventsTake, eventsTrack, eventsTrackID = defineTake(eventsTrack, VALID_EVENTSTRACKNAME)
+  end
+
+function getPPQResolution(take)
+  local ppq0 = reaper.MIDI_GetPPQPosFromProjQN(take, 0.0)
+  local ppq1 = reaper.MIDI_GetPPQPosFromProjQN(take, 1.0)
+  return ppq1 - ppq0
+  end
+
+function getPPQPOSFromQN(qn)
+  local trueVal = roundFloatingPoint(qn*PPQ_RESOLUTION)
+  local reaperVal = roundFloatingPoint(reaper.MIDI_GetPPQPosFromProjQN(drumTake, qn))
+  if trueVal ~= reaperVal then
+    reaper.ShowConsoleMsg("Bad PPQPOS from QN calculation! " .. qn .. " " .. trueVal .. "~=" .. reaperVal .. "\n")
+    throwError("Bad PPQPOS from QN calculation! " .. qn .. " " .. trueVal .. "~=" .. reaperVal)
+    end
+  return trueVal
+  end
+
+function qnToTimeFromTempoMap(qn)
+  local reaperVal = roundFloatingPoint(reaper.MIDI_GetProjTimeFromPPQPos(drumTake, reaper.MIDI_GetPPQPosFromProjQN(drumTake, qn)))
+  
+  for x=1, #tempoMap-1 do
+    local currentData = tempoMap[x]
+    local currentQN = currentData[TEMPOMAPINDEX_QN]
+    local currentPPQPOS = currentData[TEMPOMAPINDEX_PPQPOS]
+    local currentTime = currentData[TEMPOMAPINDEX_TIME]
+    local currentBPM = currentData[TEMPOMAPINDEX_BPM]
+    
+    local nextData = tempoMap[x+1]
+    local nextQN = nextData[TEMPOMAPINDEX_QN]
+    local nextPPQPOS = nextData[TEMPOMAPINDEX_PPQPOS]
+    local nextTime = nextData[TEMPOMAPINDEX_TIME]
+    local nextBPM = nextData[TEMPOMAPINDEX_BPM]
+    
+    if qn <= nextQN then
+      local trueVal = roundFloatingPoint(convertRange(qn, currentQN, nextQN, currentTime, nextTime))
+      
+      if math.abs(trueVal - reaperVal) > 0.000001 then
+        reaper.ShowConsoleMsg("BAD: " .. qn .. " " .. currentQN .. " " .. nextQN .. " (" .. trueVal .. "~=" .. reaperVal .. ")\n")
+        end
+      
+      return trueVal
+      end
+    end
+  
+  throwError("Trying to calculate position past [end] event! (" .. ppqpos .. ")")
   end
   
 function listenToMIDIEditor()

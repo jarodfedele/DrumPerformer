@@ -18,7 +18,7 @@ func run(highway):
 			var pad_position = pad["Position"]
 			drumkit_data += " position=" + str(pad_position)
 			if pad_type == "octoban" or pad_type == "racktom" or pad_type == "floortom":
-				var pad_order = pad["Order"]	
+				var pad_order = pad["Order"]
 				drumkit_data += " order=" + str(pad_order)
 	
 	print(drumkit_data)
@@ -39,7 +39,8 @@ func run(highway):
 	
 	globals["isReaper"] = false
 	var funcStr = "run_compiler"
-	globals["funcStr"] = funcStr
+	globals["reaperProcessingCurrentMeasureIndex"] = null
+	globals["reaperMasterImageList"] = null
 	globals["drumkitFileText"] = drumkit_data
 	globals["gemNameTable"] = gem_name_table
 	globals["configTextTable"] = config_text_table
@@ -65,7 +66,8 @@ func run(highway):
 	var run_godot_reaper_environment = lua.globals.get("runGodotReaperEnvironment")
 	var invoke_result = run_godot_reaper_environment.invoke(
 		false, 
-		funcStr, 
+		null, 
+		null, 
 		drumkit_data, 
 		gem_name_table, 
 		config_text_table, 
