@@ -36,18 +36,57 @@ func run(highway):
 	lua.open_libraries()
 
 	var globals = lua.get_globals()
-	globals["gamedataFileText"] = Global.current_gamedata
+	
+	globals["isReaper"] = false
+	var funcStr = "run_compiler"
+	globals["funcStr"] = funcStr
 	globals["drumkitFileText"] = drumkit_data
 	globals["gemNameTable"] = gem_name_table
 	globals["configTextTable"] = config_text_table
-	var globalized_file_path = ProjectSettings.globalize_path(Directory.OUTPUT_TEXT_FILE_PATH)
-	globals["outputTextFilePath"] = globalized_file_path
+	var globalized_output_file_path = ProjectSettings.globalize_path(Directory.OUTPUT_TEXT_FILE_PATH)
+	globals["outputTextFilePath"] = globalized_output_file_path
+	var img_sizes_file_text = Utils.read_text_file(Directory.IMG_SIZES_FILE_PATH)
+	globals["imgSizesFileText"] = img_sizes_file_text
+	var tempos_file_text = Utils.read_text_file(Directory.TEMPOS_TEXT_FILE_PATH)
+	globals["eventsFileText"] = tempos_file_text
+	var events_file_text = Utils.read_text_file(Directory.EVENTS_TEXT_FILE_PATH)
+	globals["eventsFileText"] = events_file_text
+	var midi_file_text = Utils.read_text_file(Directory.MIDI_TEXT_FILE_PATH)
+	globals["midiFileText"] = midi_file_text
+	globals["drumTake"] = null
+	globals["drumTrack"] = null
+	globals["drumTrackID"] = null
+	globals["eventsTake"] = null
+	globals["eventsTrack"] = null
+	globals["eventsTrackID"] = null
 	
-	var lua_code = Utils.load_text_file("res://note_compiler.lua")
+	var lua_code = Utils.load_text_file("res://godot_reaper_environment.lua")
 	lua.do_string(lua_code)
-	var run_compiler = lua.globals.get("runCompiler")
-	run_compiler.invoke(Global.current_gamedata, drumkit_data, gem_name_table, config_text_table, globalized_file_path)
-
+	var run_godot_reaper_environment = lua.globals.get("runGodotReaperEnvironment")
+	var invoke_result = run_godot_reaper_environment.invoke(
+		false, 
+		funcStr, 
+		drumkit_data, 
+		gem_name_table, 
+		config_text_table, 
+		globalized_output_file_path, 
+		img_sizes_file_text, 
+		tempos_file_text, 
+		events_file_text, 
+		midi_file_text,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null)
+	
+	# Catch Lua runtime errors here
+	if typeof(invoke_result) == 24:
+		print(invoke_result)
+	else:
+		print("Lua returned.")
+		
 	const NUM_CONSTANTS = 1
 	const NUM_ARRAYS = 19
 	var num_lanes

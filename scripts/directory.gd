@@ -1,11 +1,20 @@
 extends Node
 
+const ROOT_DIR = "res://"
+const ASSETS_DIR = ROOT_DIR + "assets/"
+
+const IMG_SIZES_FILE_PATH = ASSETS_DIR + "sizes.txt"
+
 const USER_DIR = "user://"
 const CONFIG_DIR = USER_DIR + "config/"
 
 const DRUM_KIT_PATH = CONFIG_DIR + "drum_kit.json"
 const PROFILES_PATH = CONFIG_DIR + "profiles.json"
 const OUTPUT_TEXT_FILE_PATH = USER_DIR + "output.txt"
+
+const TEMPOS_TEXT_FILE_PATH = USER_DIR + "tempos.txt"
+const EVENTS_TEXT_FILE_PATH = USER_DIR + "events.txt"
+const MIDI_TEXT_FILE_PATH = USER_DIR + "midi.txt"
 
 func ensure_directories(paths: Array):
 	for path in paths:
