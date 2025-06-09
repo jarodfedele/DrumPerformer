@@ -14,5 +14,8 @@ export_presets.cfg
 data_*/
 mono_crash.*.json
 
+# Game .exe file
 *.exe
+
+# REAPER files (used for charting, but not part of game)
 **/reaper/**
