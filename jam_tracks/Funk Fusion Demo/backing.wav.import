@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://b7i1e4kh4nn4b"
+path="res://.godot/imported/backing.wav-56c4ab2582afe6654fd79e6ca6f7989d.sample"
+
+[deps]
+
+source_file="res://jam_tracks/Funk Fusion Demo/backing.wav"
+dest_files=["res://.godot/imported/backing.wav-56c4ab2582afe6654fd79e6ca6f7989d.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

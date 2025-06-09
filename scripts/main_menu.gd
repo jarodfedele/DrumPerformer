@@ -39,10 +39,10 @@ func _on_load_song_page_button_pressed():
 	scene.load_song(Global.CHART_TYPE_SONG, "600", false)
 func _on_load_jam_track_panorama_button_pressed():
 	var scene = Global.game.set_scene("song")
-	scene.load_song(Global.CHART_TYPE_JAM_TRACK, "600", true)
+	scene.load_song(Global.CHART_TYPE_JAM_TRACK, "Funk Fusion Demo", true)
 func _on_load_jam_track_page_button_pressed():
 	var scene = Global.game.set_scene("song")
-	scene.load_song(Global.CHART_TYPE_JAM_TRACK, "600", false)
+	scene.load_song(Global.CHART_TYPE_JAM_TRACK, "Funk Fusion Demo", false)
 	
 func refresh_button_visibilities():
 	load_song_panorama_button.visible = Global.drum_kit["Valid"]

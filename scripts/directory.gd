@@ -20,11 +20,6 @@ const DRUM_KIT_PATH = CONFIG_DIR + "drum_kit.json"
 const PROFILES_PATH = CONFIG_DIR + "profiles.json"
 const OUTPUT_TEXT_FILE_PATH = USER_DIR + "output.txt"
 
-const TEMPOS_TEXT_FILE_PATH = USER_DIR + "tempos.txt"
-const CONFIG_TEXT_FILE_PATH = USER_DIR + "config.txt"
-const EVENTS_TEXT_FILE_PATH = USER_DIR + "events.txt"
-const MIDI_TEXT_FILE_PATH = USER_DIR + "midi.txt"
-
 const SONG_DATA_FILE_PATH = USER_DIR + "songdata.txt"
 
 func ensure_directories(paths: Array):

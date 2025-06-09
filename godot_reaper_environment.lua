@@ -1,4 +1,4 @@
-function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex, reaperMasterImageList, chartType, noteMapFileText, chunksFileText, drumkitFileText, gemNameTable, gemConfigTextTable, songDataFilePath, outputTextFilePath, imgSizesFileText, temposFileText, configFileText, eventsFileText, midiTextFilePath, notesTake, notesTrack, notesTrackID, eventsTake, eventsTrack, eventsTrackID)
+function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex, reaperMasterImageList, chartType, noteMapFileText, chunksFileText, drumkitFileText, gemNameTable, gemConfigTextTable, songDataFilePath, outputTextFilePath, imgSizesFileText, temposFileText, eventsFileText, midiTextFilePath, notesTake, notesTrack, notesTrackID, eventsTake, eventsTrack, eventsTrackID)
 	
 	CHART_TYPE = chartType
 	
@@ -2011,20 +2011,10 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  end
 	
 	local function storeMIDITextFileIntoTables()
-	  MIDI_configMessages = {}
 	  MIDI_DRUMS_noteEvents = {}
 	  MIDI_DRUMS_ccEvents = {}
 	  MIDI_DRUMS_textEvents = {}
 	  
-	  for line in configFileText:gmatch("[^\r\n]+") do
-		local values = separateString(line)
-		tableInsert(MIDI_configMessages, values)
-		end
-	
-	  local file = io.open(midiTextFilePath, "r")
-	  local midiFileText = file:read("*all")
-	  file:close()
-
 	  local currentHeader
 	  for line in midiFileText:gmatch("[^\r\n]+") do
 		local values = separateString(line)
@@ -2421,10 +2411,8 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		for noteID=0, #readyMIDILines-1 do
 		  readyMIDILines[noteID+1] = readyMIDILines[noteID+1] .. " id=" .. noteID
 		  end
-		  
-		local file = io.open(midiTextFilePath, "w+")
-	    file:write("NOTES\n" .. table.concat(readyMIDILines, "\n"))
-	    file:close()
+		
+	    midiFileText = "NOTES\n" .. table.concat(readyMIDILines, "\n")
 		end
 	  end
 	  
@@ -8005,6 +7993,10 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		else
 			createJamTrackMIDI()
 			end
+	else
+		local file = io.open(midiTextFilePath, "r")
+		midiFileText = file:read("*all")
+		file:close()
 		end
 	
     storeMIDITextFileIntoTables()

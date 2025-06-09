@@ -42,10 +42,9 @@ func run(chart_type):
 	var note_map_file_text = Utils.read_text_file(Directory.NOTE_MAP_TEXT_FILE_PATH)
 	var chunks_file_text = Utils.read_text_file(Directory.CHUNKS_TEXT_FILE_PATH)
 	var img_sizes_file_text = Utils.read_text_file(Directory.IMG_SIZES_FILE_PATH)
-	var tempos_file_text = Utils.read_text_file(Directory.TEMPOS_TEXT_FILE_PATH)
-	var config_file_text = Utils.read_text_file(Directory.CONFIG_TEXT_FILE_PATH)
-	var events_file_text = Utils.read_text_file(Directory.EVENTS_TEXT_FILE_PATH)
-	var globalized_midi_text_file_path = ProjectSettings.globalize_path(Directory.MIDI_TEXT_FILE_PATH)
+	var tempos_file_text = Utils.read_text_file(ProjectSettings.globalize_path(Global.current_song_path + "tempos.txt"))
+	var events_file_text = Utils.read_text_file(ProjectSettings.globalize_path(Global.current_song_path + "events.txt"))
+	var globalized_midi_text_file_path = ProjectSettings.globalize_path(Global.current_song_path + "midi.txt")
 	
 	var lua_code = Utils.load_text_file("res://godot_reaper_environment.lua")
 	lua.do_string(lua_code)
@@ -64,7 +63,6 @@ func run(chart_type):
 		globalized_output_file_path, 
 		img_sizes_file_text, 
 		tempos_file_text, 
-		config_file_text,
 		events_file_text, 
 		globalized_midi_text_file_path,
 		null,
