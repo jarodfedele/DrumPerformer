@@ -52,7 +52,5 @@ func _on_item_selected(index: int):
 		blend_mode_selector.selected = blend_tint_index
 		
 		Global.debug_update_notes = true
-		
-		song.load_song(Global.current_song_path)
-		
+
 		gem_positioner.visible = true

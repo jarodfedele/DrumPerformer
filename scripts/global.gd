@@ -97,6 +97,10 @@ const CC = 11
 const VALID_PAD_TYPES = ["kick", "snare", "racktom", "floortom", "hihat", "ride", "crash"]
 const VALID_ZONE_KEYS = ["head", "rim", "sidestick", "bow", "edge", "bell", "splash", "stomp"]
 
+const CHART_TYPE_SONG = 0
+const CHART_TYPE_JAM_TRACK = 1
+const CHART_TYPE_LESSON = 2
+
 var calibration_seconds = 100.0 * 0.001
 
 var game : Game
@@ -484,8 +488,6 @@ func debug_set_gem_property(gem, header, val):
 			if line.strip_edges() != "":
 				file.store_line(line)
 		file.close()
-	
-	song.load_song(Global.current_song_path)
 
 func get_value_from_key(line: String, key: String) -> Variant:
 	line = line.strip_edges(true, false)  # Remove trailing spaces only

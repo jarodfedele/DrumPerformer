@@ -1,9 +1,6 @@
 extends Node
 
-func test(highway):
-	return [[], [], []]
-	
-func run(highway):
+func run(chart_type):
 	var lua := LuaState.new()
 	lua.open_libraries()
 	
@@ -35,47 +32,41 @@ func run(highway):
 		
 	lua.open_libraries()
 
-	var globals = lua.get_globals()
 	
-	globals["isReaper"] = false
-	var funcStr = "run_compiler"
-	globals["reaperProcessingCurrentMeasureIndex"] = null
-	globals["reaperMasterImageList"] = null
-	globals["drumkitFileText"] = drumkit_data
-	globals["gemNameTable"] = gem_name_table
-	globals["configTextTable"] = config_text_table
+	var globals = lua.get_globals()
+	var is_reaper = false
+	var reaper_processing_current_measure_index = null
+	var reaper_master_image_list = null
+	var globalized_song_data_file_path = ProjectSettings.globalize_path(Directory.SONG_DATA_FILE_PATH)
 	var globalized_output_file_path = ProjectSettings.globalize_path(Directory.OUTPUT_TEXT_FILE_PATH)
-	globals["outputTextFilePath"] = globalized_output_file_path
+	var note_map_file_text = Utils.read_text_file(Directory.NOTE_MAP_TEXT_FILE_PATH)
+	var chunks_file_text = Utils.read_text_file(Directory.CHUNKS_TEXT_FILE_PATH)
 	var img_sizes_file_text = Utils.read_text_file(Directory.IMG_SIZES_FILE_PATH)
-	globals["imgSizesFileText"] = img_sizes_file_text
 	var tempos_file_text = Utils.read_text_file(Directory.TEMPOS_TEXT_FILE_PATH)
-	globals["eventsFileText"] = tempos_file_text
+	var config_file_text = Utils.read_text_file(Directory.CONFIG_TEXT_FILE_PATH)
 	var events_file_text = Utils.read_text_file(Directory.EVENTS_TEXT_FILE_PATH)
-	globals["eventsFileText"] = events_file_text
-	var midi_file_text = Utils.read_text_file(Directory.MIDI_TEXT_FILE_PATH)
-	globals["midiFileText"] = midi_file_text
-	globals["drumTake"] = null
-	globals["drumTrack"] = null
-	globals["drumTrackID"] = null
-	globals["eventsTake"] = null
-	globals["eventsTrack"] = null
-	globals["eventsTrackID"] = null
+	var globalized_midi_text_file_path = ProjectSettings.globalize_path(Directory.MIDI_TEXT_FILE_PATH)
 	
 	var lua_code = Utils.load_text_file("res://godot_reaper_environment.lua")
 	lua.do_string(lua_code)
 	var run_godot_reaper_environment = lua.globals.get("runGodotReaperEnvironment")
 	var invoke_result = run_godot_reaper_environment.invoke(
-		false, 
-		null, 
-		null, 
+		is_reaper, 
+		reaper_processing_current_measure_index, 
+		reaper_master_image_list, 
+		chart_type,
+		note_map_file_text,
+		chunks_file_text,
 		drumkit_data, 
 		gem_name_table, 
 		config_text_table, 
+		globalized_song_data_file_path,
 		globalized_output_file_path, 
 		img_sizes_file_text, 
 		tempos_file_text, 
+		config_file_text,
 		events_file_text, 
-		midi_file_text,
+		globalized_midi_text_file_path,
 		null,
 		null,
 		null,
@@ -88,6 +79,8 @@ func run(highway):
 		print(invoke_result)
 	else:
 		print("Lua returned.")
+	
+	Global.current_gamedata = Utils.read_text_file(Directory.SONG_DATA_FILE_PATH)
 		
 	const NUM_CONSTANTS = 1
 	const NUM_ARRAYS = 19
@@ -214,6 +207,7 @@ func run(highway):
 		var midi_id = midi_id_list[x]
 		
 		var pedal_val = -1
+
 		if pedal_cc != -1 and !gem.ends_with("_pedal"):
 			var found_global_data = false
 			for data in hihat_cc_global_data:
@@ -221,7 +215,7 @@ func run(highway):
 					found_global_data = true
 			if !found_global_data:
 				hihat_cc_global_data.append([pedal_cc, [position, color_r, color_g, color_b]])
-				
+			
 			for hihat_data in hihat_pedal_values:
 				if hihat_data[0] == pedal_cc:
 					var values = hihat_data[1]
@@ -240,7 +234,7 @@ func run(highway):
 					else:
 						pedal_val = pedal_val_start
 					pedal_val = int(clamp(pedal_val, 0.0, 127.0))
-						
+					
 		note_data.append([time, gem, position, pad_index, velocity, pedal_val, midi_id])
 		
 		if sustain_line is String:

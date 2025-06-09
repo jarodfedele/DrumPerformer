@@ -14,5 +14,3 @@ func _on_dir_selected(path):
 	Global.DEBUG_GEMS = true
 	gem_selector.visible = true
 	reload_gems_button.visible = true
-	
-	song.load_song(Global.current_song_path)

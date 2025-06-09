@@ -79,6 +79,12 @@ func set_notation_positions():
 					child_node.position += Vector2(xMin, yMin)
 			else:
 				assert(false, "Expected notation category node not found! " + category)
+
+func has_whole_rest():
+	for notation in get_children():
+		if notation.category == "wholerest":
+			return true
+	return false
 		
 func construct(test_index):
 	time_xPos_points = []

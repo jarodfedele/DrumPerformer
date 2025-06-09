@@ -37,3 +37,15 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Load Test Song (Page)..."
 icon = SubResource("ImageTexture_l6cm7")
+
+[node name="LoadJamTrackPanoramaButton" type="Button" parent="PanelContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Load Test Jam Track (Panorama)..."
+icon = SubResource("ImageTexture_l6cm7")
+
+[node name="LoadJamTrackPageButton" type="Button" parent="PanelContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Load Test Jam Track (Page)..."
+icon = SubResource("ImageTexture_l6cm7")

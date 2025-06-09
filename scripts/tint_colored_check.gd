@@ -18,4 +18,3 @@ func _ready():
 	
 func _on_check_button_toggled(_button_pressed: bool) -> void:
 	Global.setting_tint_colored = not Global.setting_tint_colored
-	song.load_song(Global.current_song_path)

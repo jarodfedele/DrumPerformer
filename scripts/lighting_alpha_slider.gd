@@ -20,5 +20,4 @@ func _ready():
 	connect("value_changed", Callable(self, "_on_value_changed"))
 
 func _on_value_changed(new_value: float) -> void:
-	Global.lighting_alpha = new_value
-	song.load_song(Global.current_song_path)
+	pass

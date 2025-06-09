@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c2pw4pdwxyvv3"
-path="res://.godot/imported/waveform.png-f3f92042d92f89ac13ef743850f8f647.ctex"
+path="res://.godot/imported/waveform.png-dd873f325a4c7a7680351e273a0b8e45.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://test_song/waveform.png"
-dest_files=["res://.godot/imported/waveform.png-f3f92042d92f89ac13ef743850f8f647.ctex"]
+source_file="res://songs/600/waveform.png"
+dest_files=["res://.godot/imported/waveform.png-dd873f325a4c7a7680351e273a0b8e45.ctex"]
 
 [params]
 

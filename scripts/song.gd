@@ -28,9 +28,6 @@ var audio_frame_count = 0
 
 var loaded = false
 
-#func update_contents():
-	#load_song("res://test_song/")
-
 func sync_song_time(time):
 	audio_play_start_time = time - Global.calibration_seconds
 	audio_frame_count = 0
@@ -100,9 +97,18 @@ func get_layout_coordinates(is_panorama):
 	return [highway_x_min, highway_y_min, highway_x_size, highway_y_size,
 		staff_x_min, staff_y_min, staff_x_size, staff_y_size]
 		
-func load_song(song_path, is_panorama):
+func load_song(chart_type, song_folder_name, is_panorama):
 	for child in get_children():
 		child.queue_free()
+	
+	var dir
+	if chart_type == Global.CHART_TYPE_SONG:
+		dir = Directory.SONGS_DIR
+	if chart_type == Global.CHART_TYPE_JAM_TRACK:
+		dir = Directory.JAM_TRACKS_DIR
+	if chart_type == Global.CHART_TYPE_LESSON:
+		dir = Directory.LESSONS_DIR
+	Global.current_song_path = dir + song_folder_name + "/"
 	
 	var venue_canvas_layer = VENUE_CANVAS_LAYER_SCENE.instantiate()
 	venue_canvas_layer.layer = -2
@@ -110,10 +116,8 @@ func load_song(song_path, is_panorama):
 	
 	loaded = false
 	
-	Global.current_gamedata = Utils.read_text_file(song_path + "gamedata.txt")
+	var data_arrays = NoteCompiler.run(chart_type)
 	reset_chart_data()
-	
-	var data_arrays = NoteCompiler.run(highway)
 	var note_data = data_arrays[0]
 	var sustain_data = data_arrays[1]
 	var hihat_pedal_data = data_arrays[2]
@@ -144,7 +148,6 @@ func load_song(song_path, is_panorama):
 	staff = Staff.create(true, is_panorama, staff_x_min, staff_y_min, staff_x_size, staff_y_size)
 	add_child(staff)
 	
-	Global.current_song_path = song_path
 	set_audio_players_to_song()
 		
 	var audio_bar_x_size = 1300

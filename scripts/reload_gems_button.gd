@@ -15,4 +15,4 @@ func _ready():
 	pressed.connect(_on_button_pressed)
 		
 func _on_button_pressed():
-	song.load_song(Global.current_song_path)
+	pass

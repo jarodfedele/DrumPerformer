@@ -1,4 +1,6 @@
-function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex, reaperMasterImageList, drumkitFileText, gemNameTable, configTextTable, outputTextFilePath, imgSizesFileText, temposFileText, eventsFileText, midiFileText, drumTake, drumTrack, drumTrackID, eventsTake, eventsTrack, eventsTrackID)
+function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex, reaperMasterImageList, chartType, noteMapFileText, chunksFileText, drumkitFileText, gemNameTable, gemConfigTextTable, songDataFilePath, outputTextFilePath, imgSizesFileText, temposFileText, configFileText, eventsFileText, midiTextFilePath, notesTake, notesTrack, notesTrackID, eventsTake, eventsTrack, eventsTrackID)
+	
+	CHART_TYPE = chartType
 	
 	---------------------------CONSTANTS----------------------------
 	
@@ -30,9 +32,10 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	-----
 	
 	ERROR_INVALIDTAKE = 0
-	ERROR_CONFIGINTOMEMORY = 1
-	ERROR_MIDIINTOMEMORY = 2
-	ERROR_RHYTHMLIST = 3
+	ERROR_INVALIDREAPERSETUP = 1
+	ERROR_CONFIGINTOMEMORY = 2
+	ERROR_MIDIINTOMEMORY = 3
+	ERROR_RHYTHMLIST = 4
 
 	-----
 	
@@ -227,7 +230,8 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 
 	BEATLISTINDEX_PPQPOS = 1
 	BEATLISTINDEX_TIME = 2
-	BEATLISTINDEX_BEATTYPE = 3
+	BEATLISTINDEX_QN = 3
+	BEATLISTINDEX_BEATTYPE = 4
 
 	TEMPOLISTINDEX_PPQPOS = 1
 	TEMPOLISTINDEX_QN = 2
@@ -241,6 +245,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	REFRESHSTATE_ERROR = 3
 
 	VALID_LANEOVERRIDE_LIST = {"tuplet1", "tuplet2", "rhythm1", "rhythm2", "sustain1", "sustain2", "dynamics"}
+	VALID_JAM_TYPE_LIST = {"accent", "unison"}
 	VALID_DYNAMICS_LIST = {"ppp", "pp", "p", "mp", "mf", "f", "ff", "fff", "sf", "sfz", "rfz", "fp", "n", "crescendo", "cresc.", "diminuendo", "decrescendo", "dim."}
 	VALID_RHYTHM_DENOM_LIST = {1, 2, 4, 8, 16, 32, 64, 128}
 	VALID_NOTEHEAD_LIST = {
@@ -282,7 +287,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		  if measureIndex then
 			text = "m." .. measureIndex .. ": " .. text
 			local measurePPQPOS = measureList[measureIndex][MEASURELISTINDEX_PPQPOS]
-			time = reaper.MIDI_GetProjTimeFromPPQPos(drumTake, measurePPQPOS)
+			time = reaper.MIDI_GetProjTimeFromPPQPos(notesTake, measurePPQPOS)
 			end
 		  
 		  if time then
@@ -290,6 +295,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			end
 				
 		  debug_printStack()
+		  reaper.ShowConsoleMsg(text .. "\n")
 		  end
 
 	  error(text)
@@ -596,7 +602,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  a = math.min(math.max(a, 0), 255)
 	  
 	  local function formatToHex(num)
-		num = floor(num)
+		num = math.floor(num)
 		num = string.format("%x", num)
 		if string.len(num) == 1 then
 		  num = "0" .. num
@@ -668,6 +674,18 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  t[#t+1] = data
 	  end
 	
+	local function isSong()
+	  return CHART_TYPE == 0
+	  end
+
+	local function isJamTrack()
+	  return CHART_TYPE == 1
+	  end
+
+	local function isLesson()
+	  return CHART_TYPE == 2
+	  end
+  
 	local function exactBinarySearch(list, target, subTableIndex)
 	  local left, right = 1, #list
 	  
@@ -692,6 +710,10 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  return nil -- Target not found
 	  end
 	
+	local function trim(s)
+	  return s:match("^%s*(.-)%s*$")
+	  end
+	  
 	local function trimTrailingSpaces(s)
 	  return s:gsub("%s+$", "")
 	  end
@@ -778,7 +800,13 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		end
 	  end
 	
-	local function qnToTimeFromTempoMap(qn)
+	local function qnToValueFromTempoMap(qn, valueType)
+	  if uploadedGameData then return end
+	  
+	  if not qn then
+		debug_printStack()
+		end
+		
 	  for x=1, #tempoMap-1 do
 		local currentData = tempoMap[x]
 		local currentQN = currentData[TEMPOMAPINDEX_QN]
@@ -793,7 +821,16 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		local nextBPM = nextData[TEMPOMAPINDEX_BPM]
 		
 		if qn <= nextQN then
-		  return roundFloatingPoint(convertRange(qn, currentQN, nextQN, currentTime, nextTime))
+		  local startBound, endBound
+		  if valueType == "ppqpos" then
+		    startBound = currentPPQPOS
+			endBound = nextPPQPOS
+			end
+		  if valueType == "time" then
+			startBound = currentTime
+			endBound = nextTime
+			end
+		  return roundFloatingPoint(convertRange(qn, currentQN, nextQN, startBound, endBound))
 		  end
 		end
 	  
@@ -817,6 +854,10 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
   
 	--------------SUB-HELPER FUNCTIONS-------------------
 	
+	local function isConfigEvent(msg)
+	  return (string.sub(msg, 1, 7) == "config_")
+	  end
+	  
 	local function addToNotationDrawList(dataTable)
 	  if not isReaper then return end
 	  
@@ -891,7 +932,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  if measureIndex <= #measureList then
 		measureList[measureIndex][MEASURELISTINDEX_VALIDCURRENTMEASURE] = true
 		end
-		
+
 	  if measureLabel ~= "end" then
 		local measureNumberText = tostring(measureIndex)
 		local centerX = xMin + (xMax-xMin)/2
@@ -899,8 +940,12 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		addToGameData("notation", {"measure_number", nil, "\"" .. measureNumberText .. "\"", centerX, 0, centerX, 0})
 		end
 	  
+	  local gameDataMeasureEndTime
+	  if measureLabel == "end" then
+		gameDataMeasureEndTime = endEvtTime
+		end
 	  addToNotationDrawList({"measureLine", xMin, xMax, yMin, yMax, img})
-	  addToGameData("notation", {"measure_line", nil, imgFileName, xMin, yMin, xMax, yMax})
+	  addToGameData("notation", {"measure_line", gameDataMeasureEndTime, imgFileName, xMin, yMin, xMax, yMax})
 	  
 	  local xmlIdentifier
 	  if measureLabel == "dashed" then xmlIdentifier = "dashed" end
@@ -1253,8 +1298,8 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		for x=1, #beatTable do
 		  reaper.ShowConsoleMsg(beatTable[x][1] .. " " .. beatTable[x][3] .. "\n")
 		  end
-		local ppqpos = reaper.MIDI_GetPPQPosFromProjQN(drumTake, qn)
-		local time = reaper.MIDI_GetProjTimeFromPPQPos(drumTake, ppqpos)
+		local ppqpos = reaper.MIDI_GetPPQPosFromProjQN(notesTake, qn)
+		local time = reaper.MIDI_GetProjTimeFromPPQPos(notesTake, ppqpos)
 		throwError("No beat found!", nil, time)
 		end
 	  
@@ -1340,74 +1385,53 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	local function isLaneOverride(midiNoteNum)
 	  return isInTable(VALID_LANEOVERRIDE_LIST, getNoteType(midiNoteNum))
 	  end
-	  
-
-	local function getValidStateChannels(midiNoteNum)
-	  local validChannels = {}
-	  for channel=0, 15 do
-		if getNoteState(midiNoteNum, channel) then
-		  tableInsert(validChannels, channel)
+	
+	local function isLaneJam(midiNoteNum)
+	  return isInTable(VALID_JAM_TYPE_LIST, getNoteType(midiNoteNum))
+	  end
+	
+    local function isLaneNormalNote(midiNoteNum)
+      return not (isLaneOverride(midiNoteNum) or isLaneJam(midiNoteNum))
+      end
+	
+	local function getNoteMIDINoteNumAndChannel(noteType, noteState)
+	  for midiNoteNum=0, 127 do
+	    if getNoteType(midiNoteNum) == noteType then
+		  local noteTable = getNoteTable(midiNoteNum)
+		  local channel
+		  for stateID=1, 16 do
+			local noteStateLine = noteTable[stateID]
+			local values = separateString(noteStateLine)
+			if getValueFromTable(values, "state") == noteState then
+			  channel = stateID - 1
+			  break
+			  end
+			end
+		  return midiNoteNum, channel
 		  end
 		end
-	  return validChannels
 	  end
 	  
-	local function getNoteState(midiNoteNum, channel)
+	local function getNoteStateLine(midiNoteNum, channel)
 	  local noteTable = getNoteTable(midiNoteNum)
 	  if not noteTable then return end
 	  return noteTable[channel+1]
 	  end
-	  
+	
+	local function getNoteState(midiNoteNum, channel)
+	  local noteStateLine = getNoteStateLine(midiNoteNum, channel)
+	  if noteStateLine then
+		local values = separateString(noteStateLine)
+		return getValueFromTable(values, "state")
+		end
+	  end
+		
 	local function getNoteName(midiNoteNum)
 	  local noteTable = getNoteTable(midiNoteNum)
 	  if not noteTable then return end
 	  return noteTable[18]
 	  end
-
-	local function setNoteName(midiNoteNum, noteName)
-	  local textEvtID = getConfigTextEventID(midiNoteNum)
-
-	  local _, _, _, _, evtType, msg = reaper.MIDI_GetTextSysexEvt(drumTake, textEvtID)
-	  
-	  local openQuoteIndex = string.find(msg, '"')
-	  local closeQuoteIndex = string.find(msg, '"', openQuoteIndex+1)
-	  
-	  msg = string.sub(msg, 1, openQuoteIndex) .. noteName .. string.sub(msg, closeQuoteIndex, #msg)
-	  
-	  setTextSysexEvt(drumTake, textEvtID, nil, nil, nil, evtType, msg)
-	  end
 		
-	local function getHiHatCC(midiNoteNum)
-	  local noteTable = getNoteTable(midiNoteNum)
-	  if not noteTable then return false end
-	  
-	  return noteTable[19]
-	  end
-	  
-	local function setHiHatCC(midiNoteNum, ccVal)
-	  local textEvtID = getConfigTextEventID(midiNoteNum)
-	  if not textEvtID then
-		throwError("No config text event ID! " .. midiNoteNum)
-		end
-	  
-	  local _, _, _, _, evtType, msg = reaper.MIDI_GetTextSysexEvt(drumTake, textEvtID)
-	  
-	  local headerIndex, underscoreIndex = string.find(msg, "hihatcc_")
-	  if underscoreIndex then
-		local spaceIndex = string.find(msg, " ", underscoreIndex)
-		if ccVal then
-		  msg = string.sub(msg, 1, underscoreIndex) .. ccVal .. string.sub(msg, spaceIndex, #msg)
-		else
-		  msg = string.sub(msg, 1, headerIndex-1) .. string.sub(msg, spaceIndex+1, #msg)
-		  end
-	  elseif ccVal then
-		local openBraceSpaceIndex = string.find(msg, " {")
-		msg = string.sub(msg, 1, openBraceSpaceIndex) .. "hihatcc_" .. ccVal .. string.sub(msg, openBraceSpaceIndex, #msg)
-		end
-		
-	  setTextSysexEvt(drumTake, textEvtID, nil, nil, nil, evtType, msg)
-	  end
-	
 	local function getMIDINoteVoice(noteID)
 	  local data = MIDI_DRUMS_noteEvents[noteID+1]
 	  
@@ -1442,189 +1466,10 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  return 1
 	  end
 
-	local function getNoteProperty(midiNoteNum, property)
+	local function getHiHatCC(midiNoteNum)
 	  local noteTable = getNoteTable(midiNoteNum)
 	  if not noteTable then return end
-	  
-	  local notePropertyTable = noteTable[19]
-	  local index = isInTable(notePropertyTable, property)
-	  if index then
-		return notePropertyTable[index][2]
-		end
-	  end
-	  
-	local function getNotationProperties(midiNoteNum, channel)
-	  local notehead, staffLine, articulation
-
-	  local noteType = getNoteType(midiNoteNum)
-	  local noteState = getNoteState(midiNoteNum, channel)
-	  
-	  local side = getNoteProperty(midiNoteNum, "side")
-	  if side == "left" then
-		staffLine = 3
-		end
-	  if side == "center" then
-		staffLine = 3.5
-		end
-	  if side == "right" then
-		staffLine = 4
-		end
-		
-	  if noteType == "kick" then
-		local foot = getNoteProperty(midiNoteNum, "foot")
-		if foot == "right" then
-		  staffLine = -1.5
-		  end
-		if foot == "left" then
-		  staffLine = -2
-		  end
-		if noteState == "head" then
-		  notehead = "normal"
-		  end
-		end
-	  
-	  if noteType == "snare" then
-		staffLine = 0.5
-		if noteState == "head" then
-		  notehead = "normal"
-		  end
-		if noteState == "sidestick" then
-		  notehead = "x"
-		  end
-		if noteState == "rim" then
-		  notehead = "x"
-		  end
-		end
-	  
-	  if noteType == "racktom" then
-		local pitch = getNoteProperty(midiNoteNum, "pitch")
-		if pitch == "F" then
-		  staffLine = 2
-		  end
-		if pitch == "E" then
-		  staffLine = 1.5
-		  end
-		if pitch == "D" then
-		  staffLine = 1
-		  end
-		if noteState == "head" then
-		  notehead = "normal"
-		  end
-		if noteState == "rim" then
-		  notehead = "x"
-		  end
-		end
-	  
-	  if noteType == "floortom" then
-		local pitch = getNoteProperty(midiNoteNum, "pitch")
-		if pitch == "A" then
-		  staffLine = -0.5
-		  end
-		if pitch == "G" then
-		  staffLine = -1
-		  end
-		if noteState == "head" then
-		  notehead = "normal"
-		  end
-		if noteState == "rim" then
-		  notehead = "x"
-		  end
-		end
-	  
-	  if noteType == "octoban" then
-		local pitch = getNoteProperty(midiNoteNum, "pitch")
-		if pitch == "G" then
-		  staffLine = 2.5
-		  end
-		if pitch == "F" then
-		  staffLine = 2
-		  end
-		if pitch == "E" then
-		  staffLine = 1.5
-		  end
-		if pitch == "D" then
-		  staffLine = 1
-		  end
-		if noteState == "head" then
-		  notehead = "square"
-		  end
-		end
-		
-	  if noteType == "hihat" then
-		if noteState == "closed" then
-		  notehead = "x"
-		  staffLine = 2.5
-		  end
-		if noteState == "open" then
-		  notehead = "x"
-		  staffLine = 2.5
-		  articulation = "circle"
-		  end
-		if noteState == "halfopen" then
-		  notehead = "x"
-		  staffLine = 2.5
-		  end
-		if noteState == "stomp" then
-		  notehead = "x"
-		  staffLine = -2.5
-		  end
-		if noteState == "splash" then
-		  notehead = "circle_x"
-		  staffLine = -2.5
-		  end
-		
-		if noteState == "lift" then
-		  notehead = "none"
-		  staffLine = 0
-		  end
-		end
-	  
-	  if noteType == "ride" then
-		staffLine = 2
-		if noteState == "normal" then
-		  notehead = "x"
-		  end
-		if noteState == "bell" then
-		  notehead = "diamond"
-		  end  
-		end
-	  
-	  if noteType == "crash" then
-		if noteState == "normal" then
-		  notehead = "x"
-		  end
-		end
-		
-	  if noteType == "china" then
-		if noteState == "normal" then
-		  notehead = "x"
-		  end
-		end
-	  
-	  if noteType == "splash" then
-		if noteState == "normal" then
-		  notehead = "x"
-		  end
-		end
-	  
-	  if noteType == "stack" then
-		if noteState == "normal" then
-		  notehead = "x"
-		  end
-		end
-	  
-	  if noteType == "bell" then
-		if noteState == "normal" then
-		  notehead = "diamond"
-		  staffLine = 2.5
-		  end
-		end
-		
-	  if not notehead or not staffLine then
-		throwError("Missing note state! " .. midiNoteNum .. " " .. channel)
-		end
-		
-	  return notehead, staffLine, articulation
+	  return noteTable[19]
 	  end
 	
 	local function anyNonOverrideDrumNotesInRange(rangeStartPPQPOS, rangeEndPPQPOS, originalNoteID, originalVoiceIndex)
@@ -1653,7 +1498,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		elseif (not retval or startPPQPOS >= rangeEndPPQPOS) then
 		  doneWithRightSide = true
 		else
-		  if not isLaneOverride(midiNoteNum) and getMIDINoteVoice(noteID) == originalVoiceIndex then
+		  if isLaneNormalNote(midiNoteNum) and getMIDINoteVoice(noteID) == originalVoiceIndex then
 			return true
 			end
 		  end
@@ -1679,7 +1524,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	
 	local function getSustainMIDINoteNum(voiceIndex)
 	  for midiNoteNum=0, 127 do
-		if getNoteName(midiNoteNum) == "sustain" .. voiceIndex then
+		if getNoteType(midiNoteNum) == "sustain" .. voiceIndex then
 		  return midiNoteNum
 		  end
 		end
@@ -1714,19 +1559,21 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  
 	  for midiNoteNum=0, 127 do
 		local name = getNoteName(midiNoteNum)
-		if isLaneOverride(midiNoteNum) then
+		if isLaneOverride(midiNoteNum) or (isLaneJam(midiNoteNum) and isJamTrack()) then
 		  local laneType = getNoteName(midiNoteNum)
-		  reaper.SetTrackMIDINoteName(drumTrackID, midiNoteNum, -1, string.upper(name))
+		  reaper.SetTrackMIDINoteName(notesTrackID, midiNoteNum, -1, string.upper(name))
 		else
-		  if name then
-			reaper.SetTrackMIDINoteName(drumTrackID, midiNoteNum, -1, name)
+		  if name and not (isLaneJam(midiNoteNum) and not isJamTrack()) then
+			reaper.SetTrackMIDINoteName(notesTrackID, midiNoteNum, -1, name)
+		  else
+		    reaper.SetTrackMIDINoteName(notesTrackID, midiNoteNum, -1, "")
 			end
 		  end
 		end
 	  
 	  reaper.PreventUIRefresh(-1)
 	  end
-  
+  --[[
 	local function getMatchingTextEvtID(take, targetPPQPOS, targetEvtType, targetMsg)
 	  local _, _, _, chartTextCount = reaper.MIDI_CountEvts(take)
 	  
@@ -1769,7 +1616,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		  end
 		end
 	  end
-	  
+	--]]  
 	local function insertTextSysexEvt(take, selected, muted, ppqpos, evtType, msg, relevantList, relevantListPPQPOSIndex, relevantListTextEvtIDIndex)
 	  debug_printStack()
 	  reaper.MIDI_InsertTextSysexEvt(take, selected, muted, ppqpos, evtType, msg)
@@ -1884,9 +1731,9 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  end
 	  
 	local function getNotationTextEventID(noteStartPPQPOS, noteChannel, noteMIDINoteNum)
-	  local _, _, _, chartTextCount = reaper.MIDI_CountEvts(drumTake)
+	  local _, _, _, chartTextCount = reaper.MIDI_CountEvts(notesTake)
 	  
-	  local originalTextEvtID = findAnyTextEventIDAtPPQPOS(drumTake, noteStartPPQPOS)
+	  local originalTextEvtID = findAnyTextEventIDAtPPQPOS(notesTake, noteStartPPQPOS)
 	  if not originalTextEvtID then
 		return
 		end
@@ -1897,7 +1744,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 
 	  while true do
 		local textEvtID = originalTextEvtID + indexOffset
-		local retval, _, _, ppqpos, evtType, msg = reaper.MIDI_GetTextSysexEvt(drumTake, textEvtID)
+		local retval, _, _, ppqpos, evtType, msg = reaper.MIDI_GetTextSysexEvt(notesTake, textEvtID)
 		
 		if indexOffset < 0 and (not retval or ppqpos < noteStartPPQPOS) then
 		  doneWithLeftSide = true
@@ -1932,6 +1779,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  end
   
 	local function setNotationTextEventParameter(noteStartPPQPOS, noteChannel, noteMIDINoteNum, headerWithUnderscore, val, prevVal)
+	  debug_printStack()
 	  local valToInsert
 	  if headerWithUnderscore then
 		valToInsert = headerWithUnderscore .. "_" .. val
@@ -1943,7 +1791,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  if textEvtID then
 		local newMsg
 		
-		local _, _, _, _, evtType, msg = reaper.MIDI_GetTextSysexEvt(drumTake, textEvtID)
+		local _, _, _, _, evtType, msg = reaper.MIDI_GetTextSysexEvt(notesTake, textEvtID)
 		
 		local textHeaderIndexStart = string.find(msg, "text ")
 		if textHeaderIndexStart then
@@ -2000,12 +1848,12 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		  end
 		
 		if newMsg then
-		  setTextSysexEvt(drumTake, textEvtID, nil, nil, nil, evtType, newMsg)
+		  setTextSysexEvt(notesTake, textEvtID, nil, nil, nil, evtType, newMsg)
 		  end
 	  else
 		if valToInsert then
 		  local msg = "NOTE " .. noteChannel .. " " .. noteMIDINoteNum .. " text " .. valToInsert
-		  insertTextSysexEvt(drumTake, false, false, noteStartPPQPOS, NOTATION_EVENT, msg)
+		  insertTextSysexEvt(notesTake, false, false, noteStartPPQPOS, NOTATION_EVENT, msg)
 		  end
 		end
 	  end
@@ -2168,15 +2016,21 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  MIDI_DRUMS_ccEvents = {}
 	  MIDI_DRUMS_textEvents = {}
 	  
+	  for line in configFileText:gmatch("[^\r\n]+") do
+		local values = separateString(line)
+		tableInsert(MIDI_configMessages, values)
+		end
+	
+	  local file = io.open(midiTextFilePath, "r")
+	  local midiFileText = file:read("*all")
+	  file:close()
+
 	  local currentHeader
 	  for line in midiFileText:gmatch("[^\r\n]+") do
 		local values = separateString(line)
 		if #values == 1 then
 		  currentHeader = line
 		else
-		  if currentHeader == "CONFIG" then
-			tableInsert(MIDI_configMessages, line)
-			end
 		  if currentHeader == "NOTES" then
 			tableInsert(MIDI_DRUMS_noteEvents, values)
 			end
@@ -2196,133 +2050,48 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  configList = {}
 	  validHiHatCCs = {}
 	  
-	  for i, msg in ipairs(MIDI_configMessages) do
-		local originalMsg = msg
-		local newMsg = originalMsg --if missing state parameters
-		
-		local spaceIndex = string.find(msg, " ")
-		if not spaceIndex then
-		  throwError("Config error no space: " .. msg)
-		  end
-		  
-		local midiNoteNum = tonumber(string.sub(msg, 8, spaceIndex-1))
-		if not midiNoteNum then
-		  throwError("Config error: missing MIDI note number! " .. msg)
-		  end
-		if not isValidMIDINote(midiNoteNum) then
-		  throwError("Config error: MIDI #" .. midiNoteNum)
-		  end
-		msg = string.sub(msg, spaceIndex+1, #msg)
-		
-		configList[midiNoteNum+1] = {}
-		local noteTable = configList[midiNoteNum+1]
-		
-		--laneType
-		local spaceIndex = string.find(msg, " ")
-		local laneType = string.sub(msg, 1, spaceIndex-1)
-		noteTable[17] = laneType
-		
-		if laneType == "sustain1" or laneType == "sustain2" then
-		  local _, ccUnderscoreIndex = string.find(msg, "cc_")
-		  
-		  if not ccUnderscoreIndex then
-			if laneType == "sustain1" then ccNum = 1 end
-			if laneType == "sustain2" then ccNum = 2 end
-		
-			setTextSysexEvt(drumTake, textEvtID, nil, nil, nil, TEXT_EVENT, msg .. " cc_" .. ccNum)
-			
-			currentRefreshStateLoop = true
-			return
-			end
-		  
-		  local endIndex
-		  local spaceIndex = string.find(msg, " ", ccUnderscoreIndex)
-		  if spaceIndex then
-			endIndex = spaceIndex - 1
-		  else
-			endIndex = #msg
-			end
-		  local ccNum = tonumber(string.sub(msg, ccUnderscoreIndex+1, endIndex))
-		  if laneType == "sustain1" then SUSTAINLANE1_CC = ccNum end
-		  if laneType == "sustain2" then SUSTAINLANE2_CC = ccNum end
-		  end  
-		  
-		if laneType == "dynamics" then
-		  DYNAMICSMIDINOTENUM = midiNoteNum
-		  end
-		
-		msg = string.sub(msg, spaceIndex+1, #msg)
-		
-		--noteName
-		local closeQuoteIndex = string.find(msg, '"', 2)
-		if not closeQuoteIndex then
-		  throwError("Config error no close quote: MIDI #" .. midiNoteNum)
-		  end
-		local noteName = string.sub(msg, 2, closeQuoteIndex-1)
-		if not noteName or noteName == "" then
-		  throwError("Config error invalid note name: MIDI #" .. midiNoteNum)
-		  end
-		msg = string.sub(msg, closeQuoteIndex+2, #msg)
-		
-		noteTable[18] = noteName
+	  local currentMIDINoteNum
+	  local currentStateIndex
+	  local currentNoteTable
+	  for line in noteMapFileText:gmatch("[^\r\n]+") do
+		line = trim(line)
+		local values = separateString(line)
 
-		noteTable[19] = {}
-		
-		local values = separateString(msg)
-		for x=1, #values do
-		  local str = trimTrailingSpaces(values[x])
-		  if #str > 0 then
-			local underscoreIndex = string.find(str, "_")
-			local header = string.sub(str, 1, underscoreIndex-1)
-			local val = string.sub(str, underscoreIndex+1, #str)
-			if tonumber(val) then
-			  val = tonumber(val)
-			  end
-			  
-			if tonumber(header) then
-			  local channel = tonumber(header)
-			  local stateName = val
-			  if channel < 0 or channel > 15 or math.floor(channel) ~= channel then
-				throwError("Config MIDI channel error: MIDI #" .. midiNoteNum)
-				end
-			  noteTable[channel+1] = stateName
-			else
-			  tableInsert(noteTable[19], {header, val})
-			  if laneType == "hihat" and header == "pedal" then
-				tableInsert(validHiHatCCs, val)
-				end
-			  end
-			end
-		  end
-		end
-	  
-	  if isReaper then
-	  
-		  --populate missing override lanes
-		  for x=1, #VALID_LANEOVERRIDE_LIST do
-			local laneOverrideLabel = VALID_LANEOVERRIDE_LIST[x]
-			local isValid = false
-			for midiNoteNum=0, 127 do
-			  if getNoteType(midiNoteNum) == laneOverrideLabel then
-				isValid = true
-				break
-				end
-			  end
-			
-			if not isValid then
-			  local emptyMIDINoteLane = getFirstEmptyMIDINoteLane()
-			  if not emptyMIDINoteLane then
-				throwError("Missing lane override config " .. laneOverrideName .. ", but no more available MIDI lanes!")
-				end
-			  
-			  insertTextSysexEvt(drumTake, false, false, 0, TEXT_EVENT, "config_" .. emptyMIDINoteLane .. " " .. laneOverrideLabel .. " \"" .. laneOverrideLabel .. "\"")
-			  currentRefreshStateLoop = true
-			  return
-			  end
-			end
+		local midiNoteNum = getValueFromTable(values, "note")
+		if midiNoteNum then
+		  local noteType = getValueFromTable(values, "type")
+		  local noteName = getValueFromTable(values, "name")
 		  
-		  updateMIDIEditor()
+		  configList[midiNoteNum+1] = {}
+		  local noteTable = configList[midiNoteNum+1]
+		  noteTable[17] = noteType
+		  noteTable[18] = noteName
+		  
+		  if noteType == "hihat" then
+			local pedalCC = getValueFromTable(values, "pedal")
+			noteTable[19] = pedalCC
+			tableInsert(validHiHatCCs, pedalCC)
+			end
+				
+		  if noteType == "sustain1" then SUSTAINLANE1_CC = getValueFromTable(values, "cc") end
+		  if noteType == "sustain2" then SUSTAINLANE2_CC = getValueFromTable(values, "cc") end
+		  if noteType == "dynamics" then DYNAMICSMIDINOTENUM = midiNoteNum end
+	
+		  currentMIDINoteNum = midiNoteNum
+		  currentStateIndex = 1
+		  currentNoteTable = noteTable
 		  end
+		
+		local state = getValueFromTable(values, "state")
+		if state then
+		  currentNoteTable[currentStateIndex] = line
+		  currentStateIndex = currentStateIndex + 1
+		  end	  
+		end
+
+	  if isReaper then
+		updateMIDIEditor()
+		end
 	  end
 	
 	local function storeTemposIntoMemory()
@@ -2347,6 +2116,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  
 	  chartBeatList = {}
 	  notationBeatList = {}
+	  measurePhraseList = {}
 	  sectionTextEvtList = {}
 	  tempoTextEvtList = {}
 	  measureList = {}
@@ -2367,6 +2137,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			local subTable = chartBeatList[#chartBeatList]
 			subTable[BEATLISTINDEX_PPQPOS] = getValueFromTable(values, "ppqpos")
 			subTable[BEATLISTINDEX_TIME] = getValueFromTable(values, "time")
+			subTable[BEATLISTINDEX_QN] = getValueFromTable(values, "qn")
 			subTable[BEATLISTINDEX_BEATTYPE] = getValueFromTable(values, "beat_type")
 			end
 		  if currentHeader == "NOTATION_BEAT_LIST" then
@@ -2374,6 +2145,15 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			local subTable = notationBeatList[#notationBeatList]
 			subTable[BEATLISTINDEX_PPQPOS] = getValueFromTable(values, "ppqpos")
 			subTable[BEATLISTINDEX_TIME] = getValueFromTable(values, "time")
+			subTable[BEATLISTINDEX_QN] = getValueFromTable(values, "qn")
+			subTable[BEATLISTINDEX_BEATTYPE] = getValueFromTable(values, "beat_type")
+			end
+		  if currentHeader == "MEASURE_PHRASE_LIST" then
+			tableInsert(measurePhraseList, {})
+			local subTable = measurePhraseList[#measurePhraseList]
+			subTable[BEATLISTINDEX_PPQPOS] = getValueFromTable(values, "ppqpos")
+			subTable[BEATLISTINDEX_TIME] = getValueFromTable(values, "time")
+			subTable[BEATLISTINDEX_QN] = getValueFromTable(values, "qn")
 			subTable[BEATLISTINDEX_BEATTYPE] = getValueFromTable(values, "beat_type")
 			end
 		  if currentHeader == "SECTION_LIST" then
@@ -2445,6 +2225,209 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		end
 	  end
 	
+	local function storeChunkListIntoMemory()
+	  chunkList = {}
+	  
+	  CHUNKLISTINDEX_LENGTH = 1
+	  CHUNKLISTINDEX_NOTELINES = 2
+	  CHUNKLISTINDEX_SNAREPOSLIST = 3
+	  CHUNKLISTINDEX_KICKPOSLIST = 4
+	  
+	  local subTable
+	  for line in chunksFileText:gmatch("[^\r\n]+") do
+		local values = separateString(line)
+		
+		local length = getValueFromTable(values, "qn_length")
+		if length then
+		  table.insert(chunkList, {})
+		  subTable = chunkList[#chunkList]
+		  subTable[CHUNKLISTINDEX_LENGTH] = length
+		  subTable[CHUNKLISTINDEX_NOTELINES] = {}
+		  subTable[CHUNKLISTINDEX_SNAREPOSLIST] = {}
+		  subTable[CHUNKLISTINDEX_KICKPOSLIST] = {}
+		else
+		  table.insert(subTable[CHUNKLISTINDEX_NOTELINES], line)
+		  local qnStart = getValueFromTable(values, "qn_start")
+		  local qnEnd = getValueFromTable(values, "qn_end")
+		  local genericType = getValueFromTable(values, "type")
+		  
+		  if genericType == "snare" then
+			tableInsert(subTable[CHUNKLISTINDEX_SNAREPOSLIST], qnStart)
+			end
+		  if genericType == "kick" then
+			tableInsert(subTable[CHUNKLISTINDEX_KICKPOSLIST], qnStart)
+			end
+		  end
+		end
+	
+	  --print chunk list
+	  --[[
+	  reaper.ShowConsoleMsg("---CHUNK LIST---\n")
+	  for i, subTable in ipairs(chunkList) do
+	    reaper.ShowConsoleMsg("LENGTH: " .. subTable[CHUNKLISTINDEX_LENGTH] .. "\n")
+		reaper.ShowConsoleMsg("NUM SNARES: " .. #subTable[CHUNKLISTINDEX_SNAREPOSLIST] .. "\n")
+		reaper.ShowConsoleMsg("NUM KICKS: " .. #subTable[CHUNKLISTINDEX_KICKPOSLIST] .. "\n")
+		end
+	  --]]
+	  end
+	  
+	local function createJamTrackMIDI()
+	  storeChunkListIntoMemory()
+	  
+	  math.randomseed(os.time())
+	  
+	  local measurePhraseRegions = {}
+	  
+	  local function add(qn)
+		table.insert(measurePhraseRegions[#measurePhraseRegions], qn)
+		end
+		
+	  for i, measureData in ipairs(measureList) do
+		local qn = measureData[MEASURELISTINDEX_QN]
+		local isMeasurePhrase = exactBinarySearch(measurePhraseList, qn, BEATLISTINDEX_QN)
+		if isMeasurePhrase then
+		  if #measurePhraseRegions > 0 then
+		    add(qn)
+			end
+		  table.insert(measurePhraseRegions, {})
+		  end
+		add(qn)
+		end
+	  local lastQN = measurePhraseList[#measurePhraseList][BEATLISTINDEX_QN]
+	  add(lastQN)
+	  
+	  --TODO: split measure phrase regions a bit, maybe 17/16 to 15/16 instead of 4/4 to 4/4
+	  --TODO: if groove: fill at start of measure and/or fill at end of measure, or fill entire measure
+	  
+	  --print measure phrase regions
+	  --[[
+	  for i, data in ipairs(measurePhraseRegions) do
+		reaper.ShowConsoleMsg("-----\n")
+		for j, qn in ipairs(data) do
+		  reaper.ShowConsoleMsg(qn .. "\n")
+		  end
+		end
+	  ]]--
+	  
+	  local masterRegionList = {}
+	  
+	  for i, data in ipairs(measurePhraseRegions) do
+		for j=1, #data-1 do
+		  local qn = data[j]
+		  table.insert(masterRegionList, qn)
+		  end
+		end
+	  table.insert(masterRegionList, lastQN)
+	  
+	  local readyMIDILines = {}
+	  local currentQNOffset = measurePhraseList[1][BEATLISTINDEX_QN]
+	  
+	  for x=1, #masterRegionList-1 do
+		local qnStart = masterRegionList[x]
+		local qnEnd = masterRegionList[x+1]
+		local qnLength = roundFloatingPoint(qnEnd-qnStart)
+		
+		--TODO: for now, strictly fill regions based on its length, good for odd fills but not
+		--really for grooves (should still respect meter), maybe ultimately too unnecessarily complicated
+		
+		local validChunkIDs = {}
+		
+		for chunkID, chunkData in ipairs(chunkList) do
+		  if chunkData[CHUNKLISTINDEX_LENGTH] == qnLength then
+		    table.insert(validChunkIDs, chunkID)
+			end
+		  end
+		
+		while true do
+		  --reaper.ShowConsoleMsg("NUM VALID CHUNKS: " .. #validChunkIDs .. "\n")		
+		  if #validChunkIDs == 0 then
+		    throwError("No valid chunk IDs at qn=" .. qnStart .. "!")
+		    end
+		  
+		  local validChunkIndex = math.random(#validChunkIDs)
+		  local validChunkID = validChunkIDs[validChunkIndex]
+		  local chunkData = chunkList[validChunkID]
+		  local isValidChunk = true --TODO: write some filters to potentially invalidate the chunk
+		  
+		  --convert readyChunks to midi lines! (midi.txt)
+		  local midiLines = {}
+		  local length = chunkData[CHUNKLISTINDEX_LENGTH]
+		  local noteLines = chunkData[CHUNKLISTINDEX_NOTELINES]
+		  for j, line in ipairs(noteLines) do
+			local startQN = getValueFromKey(line, "qn_start") + currentQNOffset
+			local endQN = getValueFromKey(line, "qn_end") + currentQNOffset
+			local startPPQPOS = qnToValueFromTempoMap(startQN, "ppqpos")
+			local endPPQPOS = qnToValueFromTempoMap(endQN, "ppqpos")
+			local startTime = qnToValueFromTempoMap(startQN, "time")
+			local endTime = qnToValueFromTempoMap(endQN, "time")
+			
+			local genericType = getValueFromKey(line, "type")
+		    local noteType, noteState
+			if genericType == "kick" then
+			  noteType = "kick"
+			  noteState = "head_r"
+			  end
+			if genericType == "snare" then
+			  noteType = "snare"
+			  noteState = "head"
+			  end
+			if genericType == "tom_1" then
+			  noteType = "racktom_1"
+			  noteState = "head"
+			  end
+			if genericType == "tom_2" then
+			  noteType = "racktom_2"
+			  noteState = "head"
+			  end
+			if genericType == "tom_3" then
+			  noteType = "racktom_3"
+			  noteState = "head"
+			  end
+			if genericType == "tom_4" then
+			  noteType = "floortom_1"
+			  noteState = "head"
+			  end
+			if genericType == "tom_5" then
+			  noteType = "floortom_2"
+			  noteState = "head"
+			  end
+			if genericType == "cymbal_r" then
+			  noteType = "ride"
+			  noteState = "normal"
+			  end
+			if genericType == "cymbal_l" then
+			  noteType = "hihat"
+			  noteState = "closed"
+			  end
+			  
+		    local midiNoteNum, channel = getNoteMIDINoteNumAndChannel(noteType, noteState)
+			
+			local velocity = 100 --TODO: write code to modify velocity
+			
+		    table.insert(midiLines, "ppqpos_start=" .. startPPQPOS .. " time_start=" .. startTime .. " qn_start=" .. startQN .. " ppqpos_end=" .. endPPQPOS .. " time_end=" .. endTime .. " qn_end=" .. endQN .. " channel=" .. channel .. " pitch=" .. midiNoteNum .. " velocity=" .. velocity)
+			end
+		  
+		  if isValidChunk then
+		    for i, line in ipairs(midiLines) do
+			  table.insert(readyMIDILines, line)
+			  end
+			currentQNOffset = currentQNOffset + length
+		    break
+		  else
+		    table.remove(validChunkIDs, validChunkIndex)
+			end
+		  end
+		
+		for noteID=0, #readyMIDILines-1 do
+		  readyMIDILines[noteID+1] = readyMIDILines[noteID+1] .. " id=" .. noteID
+		  end
+		  
+		local file = io.open(midiTextFilePath, "w+")
+	    file:write("NOTES\n" .. table.concat(readyMIDILines, "\n"))
+	    file:close()
+		end
+	  end
+	  
 	local function addNotationStrToList()
 	  local function findAnIndex(list, target)
 		local low = 1
@@ -2571,6 +2554,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		local time = getValueFromTable(data, "time")
 		local evtType = getValueFromTable(data, "event_type")
 		local msg = getValueFromTable(data, "message")
+		local textEvtID = getValueFromTable(data, "id")
 		
 		if evtType == NOTATION_EVENT then
 		  local data = separateString(msg)
@@ -2604,7 +2588,13 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 				list = dynamicList
 				index = getDynamicsIndex(list, ppqpos)
 				end
-			else
+			  end
+			  
+			if isLaneJam(midiNoteNum) then
+			  
+			  end
+			  
+			if isLaneNormalNote(midiNoteNum) then
 			  list = noteList
 			  index = getNoteIndex(list, ppqpos, channel, midiNoteNum)
 			  end
@@ -2617,7 +2607,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			  local header = notationValues[x]
 			  local val = removeQuotes(notationValues[x+1])
 			  
-			  if not isLaneOverride(midiNoteNum) then
+			  if isLaneNormalNote(midiNoteNum) then
 				if header == "voice" then
 				  local voiceIndex
 				  if val == 2 then
@@ -2648,7 +2638,8 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			  elseif header == "text" then
 				if laneType == "tuplet1" or laneType == "tuplet2" then
 				  local values = separateString(val)
-			  
+					
+					--reaper.ShowConsoleMsg(val .. "\n")
 				  local baseDenom = tonumber(values[1])
 				  local ratioStr = values[2]
 				  local tupletNum, tupletDenom
@@ -2872,13 +2863,27 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		  if channel == 0 and (laneType == "dynamics") and notationTextEvtMsg then
 			tableInsert(dynamicList, {startPPQPOS, endPPQPOS, startQN, endQN, startTime, endTime})
 			end
-		else
+		  end
+		 
+		if isLaneJam(midiNoteNum) then
+		  if not isJamTrack() then
+		    throwError("Note not allowed in a song!", nil, startTime)
+			end
+		  end
+		  
+		if isLaneNormalNote(midiNoteNum) then
 		  local noteName = getNoteName(midiNoteNum)
-		  local hihatCC = getNoteProperty(midiNoteNum, "pedal")
+		  local hihatCC = getHiHatCC(midiNoteNum)
 		  
 		  local noteState = getNoteState(midiNoteNum, channel)
 		  if noteState then
-			local notehead, staffLine, articulation = getNotationProperties(midiNoteNum, channel)
+			local noteStateLine = getNoteStateLine(midiNoteNum, channel)
+			local values = separateString(noteStateLine)
+			
+			local notehead = getValueFromTable(values, "notehead")
+			local staffLine = getValueFromTable(values, "staffline")
+			local articulation = getValueFromTable(values, "articulation")
+			if articulation == "none" then articulation = nil end
 			
 			tableInsert(noteList, {startPPQPOS, endPPQPOS, startQN, endQN, startTime, endTime, nil, channel, midiNoteNum, noteState, nil, nil, nil, 1, nil, nil, nil, notehead, staffLine, articulation, velocity, noteID})
 			
@@ -3083,6 +3088,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		local time = getValueFromTable(data, "time")
 		local evtType = getValueFromTable(data, "event_type")
 		local msg = getValueFromTable(data, "message")
+		local textEvtID = getValueFromTable(data, "id")
 		
 		if evtType == TEXT_EVENT then
 		  if string.sub(msg, 1, 12) == "ghostthresh " then
@@ -3210,6 +3216,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			rollType = "tremolo"
 			sustainData[SUSTAINLISTINDEX_ROLLTYPE] = rollType
 			local sustainMIDINoteNum = getSustainMIDINoteNum(voiceIndex)
+			reaper.ShowConsoleMsg("SUSTAIN: " .. voiceIndex .. "\n")
 			setNotationTextEventParameter(sustainStartPPQPOS, 0, sustainMIDINoteNum, "roll", "tremolo")
 			end
 			
@@ -3298,25 +3305,6 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		  end
 		end
 	  
-	  for midiNoteNum=0, 127 do
-		local noteType = getNoteType(midiNoteNum)
-		local noteTable = getNoteTable(midiNoteNum)
-		for channel=0, 15 do
-		  local noteState = getNoteState(midiNoteNum, channel)
-		  if noteState then
-			local data = {"note=" .. midiNoteNum, "channel=" .. channel, "type=" .. noteType, "state=" .. noteState}
-			local notePropertyTable = noteTable[19]
-			for x=1, #notePropertyTable do
-			  local property = notePropertyTable[x]
-			  local propertyHeader = property[1]
-			  local propertyValue = property[2]
-			  tableInsert(data, propertyHeader .. "=" .. propertyValue)
-			  end
-			addToGameData("state", data)
-			end
-		  end
-		end
-
 	  for x=1, #noteList do
 		local noteData = noteList[x]
 		
@@ -3326,10 +3314,15 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		local velocity = noteData[NOTELISTINDEX_VELOCITY]
 		local voiceIndex = noteData[NOTELISTINDEX_VOICEINDEX]
 		local noteID = noteData[NOTELISTINDEX_NOTEID]
-		
-		local values = {"time=" .. time, "note=" .. midiNoteNum, "channel=" .. channel, "velocity=" .. velocity, "voice=" .. voiceIndex, "id=" .. noteID}
-		
 		local sustainID = noteData[NOTELISTINDEX_SUSTAINID]
+		
+		local noteType = getNoteType(midiNoteNum)
+		local noteState = getNoteState(midiNoteNum, channel)
+		
+		local values = {"time=" .. time, "type=" .. noteType, "velocity=" .. velocity, "voice=" .. voiceIndex, "id=" .. noteID}
+		if noteState then
+		  table.insert(values, 3, "state=" .. noteState)
+		  end
 		if sustainID then
 		  tableInsert(values, "sustain=" .. sustainID)
 		  end
@@ -3806,7 +3799,8 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		  local showColon = data[TUPLETLISTINDEX_SHOWCOLON]
 		  
 		  if not baseDenom then
-			throwError("Missing text inside tuplet MIDI note!", nil, measureTime)
+			local time = reaper.MIDI_GetProjTimeFromPPQPos(notesTake, tupletStartPPQPOS)
+			throwError("Missing text inside tuplet MIDI note!", nil, time)
 			end
 				
 		  if tupletStartQN >= qnStart then
@@ -3985,7 +3979,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			qnQuantized = binarySearchClosest(qnTickTable, startQN)
 			end
 		
-		  local isValidNote = (not isNoteList) or (noteVoiceIndex == voiceIndex and not isLaneOverride(midiNoteNum) and notehead ~= "none" and gem ~= "choke")
+		  local isValidNote = (not isNoteList) or (noteVoiceIndex == voiceIndex and isLaneNormalNote(midiNoteNum) and notehead ~= "none" and gem ~= "choke")
 		  if isValidNote and qnQuantized < measureQNEnd then
 			if graceState == "flamgrace" then
 			  currentFlamGraceIndex = 0
@@ -4467,7 +4461,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		  
 		  testCount = testCount + 1
 		  if testCount == 1000 then
-			error("ERROR: further splitting rhythm list sustain lanes\n")
+			throwError("further splitting rhythm list sustain lanes\n")
 			break
 			end
 		  end
@@ -5456,7 +5450,100 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  
 	  stopMultiMeasure = true
 	  end
-  
+	
+	local function drawWholeOrMultiRests(measureIndex, currentNumEmptyMeasures, prevMeasureBoundXMin, prevMeasureBoundXMax, isLastMeasure)
+	  local beginningMeasureQN
+	  if not uploadedGameData then
+		local beginningMeasureIndex
+		if isLastMeasure then
+		  beginningMeasureIndex = measureIndex - currentNumEmptyMeasures + 1
+		else
+		  beginningMeasureIndex = measureIndex - currentNumEmptyMeasures
+		  end
+		beginningMeasureQN = measureList[beginningMeasureIndex][MEASURELISTINDEX_QN]
+		end
+		
+	  if currentNumEmptyMeasures > 1 then
+		local numberData = getNumberImagesAndBoundaries(currentNumEmptyMeasures)
+		
+		local xMin = prevMeasureBoundXMin
+		local xMax = prevMeasureBoundXMax-MEASURESTARTSPACING
+		
+		local centerY = getStaffLinePosition(0)
+		local yMin = getStaffLinePosition(-1)
+		local yMax = getStaffLinePosition(1)
+		local endGap = STAFFSPACEHEIGHT/4
+		
+		local rectYMin = centerY-STAFFSPACEHEIGHT/3
+		local rectYMax = centerY+STAFFSPACEHEIGHT/3
+		addToNotationDrawList({"multirest_rect", xMin, xMax, rectYMin, rectYMax})
+		addToGameData("notation", {"multirest_rect", nil, nil, xMin, rectYMin, xMax, rectYMax})
+		
+		addToNotationDrawList({"multirest_line", xMin, xMin, yMin, yMax})
+		addToGameData("notation", {"multirest_line", qnToValueFromTempoMap(beginningMeasureQN, "time"), nil, xMin, yMin, xMin, yMax})
+		addToNotationDrawList({"multirest_line", xMax, xMax, yMin, yMax})
+		addToGameData("notation", {"multirest_line", nil, nil, xMax, yMin, xMax, yMax})
+		
+		local centerX = (xMin + xMax) / 2
+		local numberXLen = numberData[#numberData][4]
+		local numberXMin = centerX - numberXLen/2
+		local numberYMin = getStaffLinePosition(5)
+		for x=1, #numberData do
+		  local imgValues = numberData[x]
+		  
+		  local img = imgValues[1]
+		  local xMin = imgValues[2] + numberXMin
+		  local yMin = imgValues[3] + numberYMin
+		  local xMax = imgValues[4] + numberXMin
+		  local yMax = imgValues[5] + numberYMin
+		  local imgFileName = imgValues[6]
+		  
+		  addToNotationDrawList({"multirest_number", xMin, xMax, yMin, yMax, img})
+		  addToGameData("notation", {"multirest_number", nil, imgFileName, xMin, yMin, xMax, yMax})
+		  end
+		  
+		if not gettingCurrentValues then
+		  for x=1, currentNumEmptyMeasures do
+			if measureIndex-x > 0 then --only a problem when no notes at all
+			  measureList[measureIndex-x][MEASURELISTINDEX_MULTIREST] = true
+			  end
+			end
+		  end
+	  elseif currentNumEmptyMeasures == 1 then
+		local voiceIndex = 1
+		
+		local img = getImageFromList("rest_1")
+		local imgSizeX, imgSizeY = getImageSize("rest_1")
+		local imgAspectRatio = imgSizeX/imgSizeY
+		
+		local yMin = getStaffLinePosition(1)
+		local yMax = getStaffLinePosition(0, true)
+		
+		local sizeY = yMax - yMin
+		local scalingFactor = sizeY/imgSizeY
+		local sizeX = imgSizeX*scalingFactor
+		
+		local measureXLen = prevMeasureBoundXMax - prevMeasureBoundXMin
+		local measureCenterX = prevMeasureBoundXMin + measureXLen/2
+		local xMin = measureCenterX - sizeX/2
+		local xMax = measureCenterX + sizeX/2
+		if not emptyVoice2 then
+		  yMin = yMin + STAFFSPACEHEIGHT/2
+		  yMax = yMax + STAFFSPACEHEIGHT/2
+		  end
+		
+		local isLastMeasureInt
+		if isLastMeasure then
+			isLastMeasureInt = 1
+		else
+			isLastMeasureInt = 0
+			end
+		addToGameData("notation", {"wholerest_dummy", qnToValueFromTempoMap(beginningMeasureQN, "time"), nil, prevMeasureBoundXMin, yMin, prevMeasureBoundXMin, yMax, isLastMeasureInt})
+		addToNotationDrawList({"wholeRest", xMin, xMax, yMin, yMax, img, voiceIndex, emptyVoice2})
+		addToGameData("notation", {"wholerest", nil, "rest_1", xMin, yMin, xMax, yMax, isLastMeasureInt})
+		end		
+	  end
+	  
 	local function processMeasure(measureIndex, isActiveMeasure)
 	  local qnStart, qnEnd, qnStepList, quantizeNum, quantizeDenom, quantizeTupletFactorNum, quantizeTupletFactorDenom, quantizeModifier, qnStepSize, currentQN, timeSigNum, timeSigDenom, beatTable, currentBeat
 	  
@@ -6276,7 +6363,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			  local dynamic = dynamicsData[DYNAMICLISTINDEX_TYPE]
 			  if not dynamic then
 				local ppqpos = dynamicsData[DYNAMICLISTINDEX_STARTPPQPOS]
-				throwError("No dynamic attached to note! ", nil, reaper.MIDI_GetProjTimeFromPPQPos(drumTake, ppqpos))
+				throwError("No dynamic attached to note! ", nil, reaper.MIDI_GetProjTimeFromPPQPos(notesTake, ppqpos))
 				end
 			  
 			  local xPos = getQNXPos(qn, true)
@@ -6331,87 +6418,9 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		  stopMultiMeasure = true
 		  end
 		
-		if stopMultiMeasure then
-		  local beginningMeasureQN
-		  if not uploadedGameData then
-			local beginningMeasureIndex = measureIndex - currentNumEmptyMeasures
-			beginningMeasureQN = measureList[beginningMeasureIndex][MEASURELISTINDEX_QN]
-			end
-			
-		  if currentNumEmptyMeasures > 1 then
-			local prevMeasureBoundXMin = currentMeasureLineData[8]
-			local prevMeasureBoundXMax = currentMeasureLineData[9]
-			local numberData = getNumberImagesAndBoundaries(currentNumEmptyMeasures)
-			
-			local xMin = prevMeasureBoundXMin
-			local xMax = prevMeasureBoundXMax-MEASURESTARTSPACING
-			
-			local centerY = getStaffLinePosition(0)
-			local yMin = getStaffLinePosition(-1)
-			local yMax = getStaffLinePosition(1)
-			local endGap = STAFFSPACEHEIGHT/4
-			
-			local rectYMin = centerY-STAFFSPACEHEIGHT/3
-			local rectYMax = centerY+STAFFSPACEHEIGHT/3
-			addToNotationDrawList({"multirest_rect", xMin, xMax, rectYMin, rectYMax})
-			addToGameData("notation", {"multirest_rect", nil, nil, xMin, rectYMin, xMax, rectYMax, beginningMeasureStartTime})
-			
-			addToNotationDrawList({"multirest_line", xMin, xMin, yMin, yMax})
-			addToGameData("notation", {"multirest_line", qnToTimeFromTempoMap(beginningMeasureQN), nil, xMin, yMin, xMin, yMax})
-			addToNotationDrawList({"multirest_line", xMax, xMax, yMin, yMax})
-			addToGameData("notation", {"multirest_line", nil, nil, xMax, yMin, xMax, yMax})
-			
-			local centerX = (xMin + xMax) / 2
-			local numberXLen = numberData[#numberData][4]
-			local numberXMin = centerX - numberXLen/2
-			local numberYMin = getStaffLinePosition(5)
-			for x=1, #numberData do
-			  local imgValues = numberData[x]
-			  
-			  local img = imgValues[1]
-			  local xMin = imgValues[2] + numberXMin
-			  local yMin = imgValues[3] + numberYMin
-			  local xMax = imgValues[4] + numberXMin
-			  local yMax = imgValues[5] + numberYMin
-			  local imgFileName = imgValues[6]
-			  
-			  addToNotationDrawList({"multirest_number", xMin, xMax, yMin, yMax, img})
-			  addToGameData("notation", {"multirest_number", nil, imgFileName, xMin, yMin, xMax, yMax})
-			  end
-			  
-			if not gettingCurrentValues then
-			  for x=1, currentNumEmptyMeasures do
-				measureList[measureIndex-x][MEASURELISTINDEX_MULTIREST] = true
-				end
-			  end
-		  elseif currentNumEmptyMeasures == 1 then
-			local prevMeasureBoundXMin = currentMeasureLineData[8]
-			local prevMeasureBoundXMax = currentMeasureLineData[9]
-			
-			local voiceIndex = 1
-			
-			local img = getImageFromList("rest_1")
-			local imgSizeX, imgSizeY = getImageSize("rest_1")
-			local imgAspectRatio = imgSizeX/imgSizeY
-			
-			local yMin = getStaffLinePosition(1)
-			local yMax = getStaffLinePosition(0, true)
-			
-			local sizeY = yMax - yMin
-			local scalingFactor = sizeY/imgSizeY
-			local sizeX = imgSizeX*scalingFactor
-			
-			local measureXLen = prevMeasureBoundXMax - prevMeasureBoundXMin
-			local measureCenterX = prevMeasureBoundXMin + measureXLen/2
-			local xMin = measureCenterX - sizeX/2
-			local xMax = measureCenterX + sizeX/2
-			if not emptyVoice2 then
-			  yMin = yMin + STAFFSPACEHEIGHT/2
-			  yMax = yMax + STAFFSPACEHEIGHT/2
-			  end
-			
-			addToNotationDrawList({"wholeRest", xMin, xMax, yMin, yMax, img, voiceIndex, emptyVoice2})
-			addToGameData("notation", {"wholerest", nil, "rest_1", xMin, yMin, xMax, yMax, beginningMeasureStartTime})
+		if stopMultiMeasure then 
+		  if currentNumEmptyMeasures > 0 then
+		    drawWholeOrMultiRests(measureIndex, currentNumEmptyMeasures, currentMeasureLineData[8], currentMeasureLineData[9])
 			end
 		  currentNumEmptyMeasures = 0
 		  end
@@ -6842,7 +6851,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			  addToNotationDrawList({category, xMin, xMax, yMin, yMax, img, chord, chordNoteIndex, isRhythmOverride, currentRhythmWithoutTuplets, maxRhythmWithoutTuplets, minBeat, maxBeat, tupletFactorNum, tupletFactorDenom, beatTable, timeSigNum, timeSigDenom, fakeChord})
 			  local hasTieInt
 			  if hasTie then hasTieInt = 1 else hasTieInt = 0 end
-			  addToGameData("notation", {"notehead", qnToTimeFromTempoMap(qnQuantized), imgFileName, xMin, yMin, xMax, yMax, voiceIndex .. hasTieInt .. noteID})
+			  addToGameData("notation", {"notehead", qnToValueFromTempoMap(qnQuantized, "time"), imgFileName, xMin, yMin, xMax, yMax, voiceIndex .. hasTieInt .. noteID})
 			  end
 			if category == "gracenotehead" then
 			  local noteID = data[8]
@@ -6852,7 +6861,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			  local chordNoteIndex = data[12]
 			  addToNotationDrawList({category, xMin, xMax, yMin, yMax, img, chord, chordNoteIndex})
 			  local hasTieInt = 0
-			  addToGameData("notation", {"notehead", qnToTimeFromTempoMap(qnQuantized), imgFileName, xMin, yMin, xMax, yMax, voiceIndex .. hasTieInt .. noteID})
+			  addToGameData("notation", {"notehead", qnToValueFromTempoMap(qnQuantized, "time"), imgFileName, xMin, yMin, xMax, yMax, voiceIndex .. hasTieInt .. noteID})
 			  end
 			if category == "flag" then
 			  local img = data[8]
@@ -6876,7 +6885,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			  local timeSigDenom = data[20]
 			  local measureIndex = data[21]
 			  addToNotationDrawList({category, xMin, xMax, yMin, yMax, img, voiceIndex, isRhythmOverride, currentRhythmWithoutTuplets, maxRhythmWithoutTuplets, minBeat, maxBeat, tupletFactorNum, tupletFactorDenom, beatTable, timeSigNum, timeSigDenom, measureIndex})
-			  addToGameData("notation", {"rest", qnToTimeFromTempoMap(qnQuantized), imgFileName, xMin, yMin, xMax, yMax, voiceIndex})
+			  addToGameData("notation", {"rest", qnToValueFromTempoMap(qnQuantized, "time"), imgFileName, xMin, yMin, xMax, yMax, voiceIndex})
 			  end
 			if category == "dot" then
 			  local dotCenterX = xMin + DOTRADIUS
@@ -7253,6 +7262,9 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		measureBoundXMin = xMax + MEASURESTARTSPACING --for next measure
 		
 		if measureIndex == #measureList then
+		  if currentNumEmptyMeasures > 0 then
+			drawWholeOrMultiRests(measureIndex, currentNumEmptyMeasures, currentMeasureLineData[8], currentMeasureLineData[9], true)
+		    end
 		  drawPreviousMeasureLine(measureIndex+1)
 		  end
 		end
@@ -7457,10 +7469,11 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  addToGameData("general", {"center_staff_line", (getStaffLinePosition(0) - NOTATION_YMIN) / STAFFSPACEHEIGHT})
 	  end
 	
-	local function uploadGameData()
+	local function uploadSongData()
 	  local str = ""
 	  
 	  local function addToStr(header, gameDataTable)
+		if #gameDataTable == 0 then return end
 		str = str .. header .. "\n" .. table.concat(gameDataTable, "\n") .. "\n"
 		end
 	  
@@ -7480,18 +7493,10 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  addToStr("SUSTAINS", gameDataTable_sustains)
 	  addToStr("NOTATIONS", gameDataTable_notations)
 	  
-	  --[[
-	  local fileName = "gamedata.txt"
-	  
-	  local file = io.open(getGameDataDirectory() .. fileName, "w+")
+	  local file = io.open(songDataFilePath, "w+")
 	  file:write(str)
 	  file:close()
-	  
-	  local file = io.open(getGodotProjectDirectory() .. fileName, "w+")
-	  file:write(str)
-	  file:close()
-	  ]]--
-	  
+
 	  gamedataFileText = str
 	  
 	  uploadedGameData = true
@@ -7514,7 +7519,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		  local gemLabel = gemNameTable[x]
 		  local subTable = {gemLabel}
 		  tableInsert(gemConfigList, subTable)
-		  local fileText = configTextTable[x]
+		  local fileText = gemConfigTextTable[x]
 
 		  for line in fileText:gmatch("[^\r\n]+") do
 			line = trimTrailingSpaces(line)
@@ -7530,24 +7535,13 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		  return a[1] < b[1]  -- Or a[subTableIndex] < b[subTableIndex]
 		  end)
 		
-		local stateList = {}
-		for midiNoteNum=0, 127 do
-		  stateList[midiNoteNum+1] = {}
-		  end
-	  
 		local midiNoteList = {}
 		local sustainLinesBothVoices = {{}, {}}
 	  
 		local VALID_TOM_LIST = {
-		  {"octoban", "G"},
-		  {"octoban", "F"},
-		  {"octoban", "E"},
-		  {"octoban", "D"},
-		  {"racktom", "F"},
-		  {"racktom", "E"},
-		  {"racktom", "D"},
-		  {"floortom", "A"},
-		  {"floortom", "G"}
+		  "octoban_1", "octoban_2", "octoban_3", "octoban_4",
+		  "racktom_1", "racktom_2", "racktom_3",
+		  "floortom_1", "floortom_2"
 		}
 	  
 		local currentHeader
@@ -7557,18 +7551,6 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		  if #values == 1 then
 			currentHeader = line
 		  else
-			if currentHeader == "STATES" then
-			  local midiNoteNum = getValueFromKey(line, "note")
-			  local channel = getValueFromKey(line, "channel")
-			  for x=#values, 1, -1 do
-				local param = values[x]
-				local key, value = getKeyAndValue(param)
-				if key == "note" or key == "channel" then
-				  table.remove(values, x)
-				  end
-				end
-			  stateList[midiNoteNum+1][channel+1] = table.concat(values, " ")
-			  end
 			if currentHeader == "SUSTAINS" then
 			  local sustainID = getValueFromKey(line, "id")
 			  local sustainVoiceIndex = getValueFromKey(line, "voice")
@@ -7643,12 +7625,8 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  
 		--next, group toms into zones for reduction
 	  
-		local function getValidTomIndex(noteType, notePitch)
-		  for validTomIndex=1, #VALID_TOM_LIST do
-			if VALID_TOM_LIST[validTomIndex][1] == noteType and VALID_TOM_LIST[validTomIndex][2] == notePitch then
-			  return validTomIndex
-			  end
-			end
+		local function getValidTomIndex(noteType)
+		  return isInTable(VALID_TOM_LIST, noteType)
 		  end
 		
 		local prevTomTime
@@ -7658,15 +7636,8 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		  local noteLine = midiNoteList[midiNoteIndex]
 		
 		  local time = getValueFromKey(noteLine, "time")
-		  local midiNoteNum = getValueFromKey(noteLine, "note")
-		  local channel = getValueFromKey(noteLine, "channel")
-		  local padIndex = getValueFromKey(noteLine, "pad")
-	  
-		  local stateLine = stateList[midiNoteNum+1][channel+1]
-		  local noteType = getValueFromKey(stateLine, "type")
-		  local notePitch = getValueFromKey(stateLine, "pitch")
-		
-		  local validTomIndex = getValidTomIndex(noteType, notePitch)
+		  local noteType = getValueFromKey(noteLine, "type")
+		  local validTomIndex = getValidTomIndex(noteType)
 		  if validTomIndex then
 			if not prevTomTime or time > prevTomTime + 2 then --if 2 or more seconds have elapsed since last tom
 			  tableInsert(tomZones, {time, {}})
@@ -7798,18 +7769,22 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		
 		local function attemptToSetPad(midiNoteIndex, func)
 		  local noteLine = midiNoteList[midiNoteIndex]
-		
-		  local time = getValueFromKey(noteLine, "time")
-		  local midiNoteNum = getValueFromKey(noteLine, "note")
-		  local channel = getValueFromKey(noteLine, "channel")
+		  
 		  local padIndex = getValueFromKey(noteLine, "pad")
-		
-		  local stateLine = stateList[midiNoteNum+1][channel+1]
-		  local noteType = getValueFromKey(stateLine, "type")
-		  local noteState = getValueFromKey(stateLine, "state")
-		
 		  if padIndex then return end
-		
+		  
+		  local time = getValueFromKey(noteLine, "time")
+		  local noteType = getValueFromKey(noteLine, "type")
+		  local noteState = getValueFromKey(noteLine, "state")
+		  local midiNoteNum, channel = getNoteMIDINoteNumAndChannel(noteType, noteState)
+		  local noteStateLine = getNoteStateLine(midiNoteNum, channel)
+		  
+		  local noteHeader
+		  local underscoreIndex = string.find(noteType, "_")
+		  if underscoreIndex then
+		    noteHeader = string.sub(noteType, 1, underscoreIndex-1)
+			end
+			
 		  if func == "force_required_pads" then
 			if noteType == "kick" then
 			  local pad, padIndex = getPadFromType("kick")
@@ -7830,8 +7805,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			end
 		
 		  if func == "force_toms" then
-			local notePitch = getValueFromKey(stateLine, "pitch")
-			local validTomIndex = getValidTomIndex(noteType, notePitch)
+			local validTomIndex = getValidTomIndex(noteType)
 			if validTomIndex then
 			  for x=#tomZones, 1, -1 do
 				local tomZone = tomZones[x]
@@ -7842,7 +7816,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 				  for y=1, #validTomIndecesData do
 					if validTomIndecesData[y][1] == validTomIndex then
 					  local normalizedTomPadIndex = validTomIndecesData[y][2]
-					  local padIndex = tomPadIndeces[normalizedTomPadIndex]
+					  local padIndex = tomPadIndeces[normalizedTomPadIndex]				  
 					  setPadIndex(midiNoteIndex, padIndex)
 					  end
 					end
@@ -7853,7 +7827,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			end
 		
 		  if func == "debug_force_crashes" then
-			if noteType == "crash" or noteType == "china" or noteType == "splash" or noteType == "stack" or noteType == "bell" then
+			if noteHeader == "crash" or noteHeader == "china" or noteHeader == "splash" or noteHeader == "stack" or noteType == "bell" then
 			  local pad, padIndex = getPadFromType("crash")
 			  setPadIndex(midiNoteIndex, padIndex)
 			  end
@@ -7870,7 +7844,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		  attemptToSetPad(midiNoteIndex, "debug_force_crashes")
 		  end
 	  
-		--populate chartNoteList, or throe error if missing pad indeces
+		--populate chartNoteList, or throw error if missing pad indeces
 		chartNoteList = {}
 	   
 		local masterList = {}
@@ -7891,18 +7865,16 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		  local noteLine = midiNoteList[midiNoteIndex]
 		
 		  local time = getValueFromKey(noteLine, "time")
-		  local midiNoteNum = getValueFromKey(noteLine, "note")
-		  local channel = getValueFromKey(noteLine, "channel")
+		  local noteType = getValueFromKey(noteLine, "type")
+		  local noteState = getValueFromKey(noteLine, "state")
 		  local velocity = getValueFromKey(noteLine, "velocity")
 		  local padIndex = getValueFromKey(noteLine, "pad")
 		  local voiceIndex = getValueFromKey(noteLine, "voice")
 		  local midiID = getValueFromKey(noteLine, "id")
 		  local sustainID = getValueFromKey(noteLine, "sustain")
-		
-		  local stateLine = stateList[midiNoteNum+1][channel+1]
-		  local noteType = getValueFromKey(stateLine, "type")
-		  local noteState = getValueFromKey(stateLine, "state")
-		  local notePedal = getValueFromKey(stateLine, "pedal")
+		  
+		  local midiNoteNum, channel = getNoteMIDINoteNumAndChannel(noteType, noteState)
+		  local notePedal = getHiHatCC(midiNoteNum)
 		
 		  if padIndex then
 			insertInMasterList(time)
@@ -7910,6 +7882,14 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			insertInMasterList(getValueFromKey(padList[padIndex], "position"), -1)
 		  
 			local gem = noteType
+			
+			local underscoreIndex = string.find(noteType, "_")
+			if underscoreIndex then
+			  local header = string.sub(noteType, 1, underscoreIndex-1)
+			  if header == "octoban" or header == "racktom" or header == "floortom" or header == "china" or header == "crash" or header == "stack" or header == "splash" then
+			    gem = header
+				end
+			  end
 			if noteType == "ride" and noteState == "bell" then
 			  gem = "ride" --TODO: ride bell
 			  end
@@ -7971,16 +7951,19 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			end
 		  end
 	  
-		if #missingPadTable > 0 then
+		if #missingPadTable > 0 then	
 		  reaper.ShowConsoleMsg("---MISSING PADS (" .. #missingPadTable .. ")---\n")
 		  reaper.ShowConsoleMsg(table.concat(missingPadTable, "\n"))
 		  throwError("Missing pads!")
 		  end
-	  
+		
 		--TODO: check for 2 of the same pad at the same time
 	  
 		local file = io.open(outputTextFilePath, "w+")
-		local fileText = numLanes .. "\n" .. table.concat(masterList, "\n")
+		local fileText = numLanes
+		if #masterList > 0 then
+		  fileText = fileText .. "\n" .. table.concat(masterList, "\n")
+		  end
 		file:write(fileText)
 		file:close()
 	  
@@ -8004,20 +7987,43 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	
     defineNotationVariables()
     
-    storeMIDITextFileIntoTables()
-    
-    storeConfigIntoMemory()
-
-    storeEventsIntoMemory()
-    
-    storeMIDIIntoMemory()
+	if isReaper then
+		local err = safeCall(storeConfigIntoMemory, ERROR_CONFIGINTOMEMORY) if err then return err end
+	else
+		storeConfigIntoMemory()
+		end
 	
-    processNotationMeasures()
+	if isReaper then
+		local err = safeCall(storeEventsIntoMemory, ERROR_MIDIINTOMEMORY) if err then return err end
+	else
+		storeEventsIntoMemory()
+		end	
     
-    uploadGameData()
+	if isJamTrack() then
+		if isReaper then
+			local err = safeCall(createJamTrackMIDI, ERROR_MIDIINTOMEMORY) if err then return err end
+		else
+			createJamTrackMIDI()
+			end
+		end
+	
+    storeMIDITextFileIntoTables()
+	
+	if isReaper then
+		local err = safeCall(storeMIDIIntoMemory, ERROR_MIDIINTOMEMORY) if err then return err end
+	else
+		storeMIDIIntoMemory()
+		end
+		
+	if isReaper then
+		local err = safeCall(processNotationMeasures, ERROR_RHYTHMLIST) if err then return err end
+	else
+		processNotationMeasures()
+		end
+		
+    uploadSongData()
 	
 	return convertToUserDrumKit()
-	
 	end
 
 _G.runGodotReaperEnvironment = runGodotReaperEnvironment

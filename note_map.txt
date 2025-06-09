@@ -1,0 +1,88 @@
+note=127 type=tuplet1 `name=TUPLET 1`
+note=126 type=rhythm1 `name=RHYTHM 1`
+note=125 type=sustain1 `name=SUSTAIN 1` cc=1
+
+note=122 type=cowbell `name=Cowbell`
+	state=normal notehead=diamond staffline=1.5 articulation=none
+	
+note=80 type=china_r `name=China (R)`
+	state=normal notehead=x staffline=4 articulation=none
+note=79 type=china_c `name=China (C)`
+	state=normal notehead=x staffline=3.5 articulation=none
+note=78 type=china_l `name=China (L)`
+	state=normal notehead=x staffline=3 articulation=none
+
+note=74 type=crash_r `name=Crash (R)`
+	state=normal notehead=x staffline=4 articulation=none
+note=73 type=crash_c `name=Crash (C)`
+	state=normal notehead=x staffline=3.5 articulation=none
+note=72 type=crash_l `name=Crash (L)`
+	state=normal notehead=x staffline=3 articulation=none
+
+note=68 type=stack_r `name=Stack (R)`
+	state=normal notehead=x staffline=4 articulation=none
+note=67 type=stack_c `name=Stack (C)`
+	state=normal notehead=x staffline=3.5 articulation=none
+note=66 type=stack_l `name=Stack (L)`
+	state=normal notehead=x staffline=3 articulation=none
+
+note=62 type=splash_r `name=Splash (R)`
+	state=normal notehead=x staffline=4 articulation=none
+note=61 type=splash_c `name=Splash (C)`
+	state=normal notehead=x staffline=3.5 articulation=none
+note=60 type=splash_l `name=Splash (L)`
+	state=normal notehead=x staffline=3 articulation=none
+
+note=58 type=bell `name=Bell`
+	state=normal notehead=diamond staffline=2.5 articulation=none
+	
+note=54 type=ride `name=Ride`
+	state=normal notehead=x staffline=2 articulation=none
+	state=bell notehead=diamond staffline=2 articulation=none
+	
+note=48 type=hihat `name=Hi-Hat` pedal=12
+	state=closed notehead=x staffline=2.5 articulation=none
+	state=open notehead=x staffline=2.5 articulation=circle
+	state=halfopen notehead=x staffline=2.5 articulation=none
+	state=stomp notehead=x staffline=-2.5 articulation=none
+	state=splash notehead=x staffline=-2.5 articulation=none
+
+note=47 type=octoban_1 `name=Octoban 1`
+	state=head notehead=square staffline=2.5 articulation=none
+note=46 type=octoban_2 `name=Octoban 2`
+	state=head notehead=square staffline=2 articulation=none
+note=45 type=octoban_3 `name=Octoban 3`
+	state=head notehead=square staffline=1.5 articulation=none
+note=44 type=octoban_4 `name=Octoban 4`
+	state=head notehead=square staffline=1 articulation=none
+
+note=35 type=racktom_1 `name=Rack Tom 1`
+	state=head notehead=normal staffline=2 articulation=none
+	state=rim notehead=x staffline=2 articulation=none
+note=34 type=racktom_2 `name=Rack Tom 2`
+	state=head notehead=normal staffline=1.5 articulation=none
+	state=rim notehead=x staffline=1.5 articulation=none
+note=33 type=racktom_3 `name=Rack Tom 3`
+	state=head notehead=normal staffline=1 articulation=none
+	state=rim notehead=x staffline=1 articulation=none
+
+note=29 type=floortom_1 `name=Floor Tom 1`
+	state=head notehead=normal staffline=-0.5 articulation=none
+	state=rim notehead=x staffline=-0.5 articulation=none
+note=28 type=floortom_2 `name=Floor Tom 2`
+	state=head notehead=normal staffline=-1 articulation=none
+	state=rim notehead=x staffline=-1 articulation=none
+
+note=24 type=snare `name=Snare`
+	state=head notehead=normal staffline=0.5 articulation=none
+	state=sidestick notehead=x staffline=0.5 articulation=none
+	state=rim notehead=x staffline=0.5 articulation=none
+
+note=14 type=kick `name=Kick`
+	state=head_r notehead=normal staffline=-1.5 articulation=none
+	state=head_l notehead=normal staffline=-2 articulation=none
+
+note=3 type=dynamics `name=DYNAMICS`
+note=2 type=sustain2 `name=SUSTAIN 2` cc=2
+note=1 type=rhythm2 `name=RHYTHM 2`
+note=0 type=tuplet2 `name=TUPLET 2`

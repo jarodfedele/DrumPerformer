@@ -174,7 +174,7 @@ func _ready():
 			var starting_notation_measure = notation_measure_list[starting_measure_index]
 			var time = starting_notation_measure.time_xPos_points[0][0]
 			notation_page_starting_time_pos_list.append([time, -(line_yMin-initial_y_offset), starting_notation_measure])
-
+		
 	add_hairpins_to_display()
 	add_ties_to_display()
 	
@@ -322,7 +322,10 @@ func get_consecutive_measure_x_offsets(starting_measure_index) -> Array:
 		
 		prev_x_boundary_max = current_x_boundary_max
 		measure_index += 1
-
+	
+	if !is_panorama and starting_measure_index + x_offsets.size() >= notation_measure_list.size():
+		ended_last_measure = true
+	
 	return [x_offsets, ended_last_measure]
 
 func get_index_in_line(notation_measure):
@@ -365,7 +368,7 @@ func store_notation_lines():
 				var prev_notation_measure = notation_measure_list[notation_measure.measure_index-1]
 				var prev_measure_line_notation = prev_notation_measure.get_measure_line_notation()
 				prev_measure_line_notation.add_child(measure_number_child_node)
-
+		
 	for measure_index in range(notation_measure_list.size()):
 		var notation_measure = notation_measure_list[measure_index]
 		notation_measure.set_notation_positions()
@@ -584,6 +587,8 @@ func display_measures_from_index(starting_notation_line_number, staffline_id):
 	if ended_last_measure:
 		var last_notation_measure = notation_measure_list[notation_measure_list.size()-1]
 		line_x_max = last_notation_measure.position.x + last_notation_measure.size_x
+		if !is_panorama:
+			line_x_max = min(line_x_max, staffline_x_max)
 	else:
 		line_x_max = staffline_x_max
 	draw_staff_line_body(staffline_x_min, line_x_max, center_staff_line_yPos)
@@ -665,7 +670,8 @@ func populate_notations():
 	var prev_category
 	var prev_notation_measure
 	
-	for measure_data in song.notation_data:
+	for measure_data_index in range(song.notation_data.size()):
+		var measure_data = song.notation_data[measure_data_index]
 		var notation_measure = NOTATION_MEASURE_SCENE.instantiate()
 		notation_measure.measure_index = notation_measure_list.size()
 		notation_measure_list.append(notation_measure)
@@ -724,10 +730,12 @@ func populate_notations():
 					if category == "timesig":
 						time_sig_notations.append(current_notation)
 						
-				elif category == "line" or category == "stem" or category == "gracestem" or category == "graceline" or category == "leger_line" or  category == "multirest_line" or category == "tuplet_line" or category == "dummyline":
+				elif category == "line" or category == "wholerest_dummy" or category == "stem" or category == "gracestem" or category == "graceline" or category == "leger_line" or  category == "multirest_line" or category == "tuplet_line" or category == "dummyline":
 					node = Line2D.new()
 					current_notation.node_type = "Line2D"
 					node.default_color = Color(0, 0, 0)
+					if category == "wholerest_dummy":
+						node.default_color.a = 0
 					node.width = 2
 					if category == "stem":
 						var digits = []
@@ -887,7 +895,7 @@ func populate_notations():
 				if node != null:
 					current_notation.add_child(node)
 
-				if (category == "measure_line" and file_name != "measure_end") or category == "wholerest" or category.begins_with("multirest"):
+				if (category == "measure_line" and file_name != "measure_end") or ((category == "wholerest" or category == "wholerest_dummy") and int(misc) == 0) or category.begins_with("multirest"):
 					prev_notation_measure.add_child(current_notation)
 				else:
 					notation_measure.add_child(current_notation)
