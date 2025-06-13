@@ -101,14 +101,25 @@ const CHART_TYPE_SONG = 0
 const CHART_TYPE_JAM_TRACK = 1
 const CHART_TYPE_LESSON = 2
 
-var calibration_seconds = 100.0 * 0.001
+var chunks_file_text : String
+
+var calibration_seconds = 60.0 * 0.001
 
 var game : Game
 
 func _ready():
-	if not DirAccess.dir_exists_absolute(GEMS_PATH):
-		GEMS_PATH = ORIGINAL_GEMS_PATH
-		DEBUG_GEMS = false
+	var chunks_lines = []
+	var dir = DirAccess.open(Directory.CHUNKS_DIR)
+	if dir:
+		dir.list_dir_begin()
+		var file_name = dir.get_next()
+		while file_name != "":
+			if file_name.ends_with(".txt"):
+				var file_path = ProjectSettings.globalize_path(Directory.CHUNKS_DIR + file_name)
+				chunks_lines.append(Utils.read_text_file(file_path))
+			file_name = dir.get_next()
+		dir.list_dir_end()
+	chunks_file_text = "\n".join(chunks_lines)
 
 func does_gem_exist(gem):
 	var index = get_gem_index_in_list(gem)

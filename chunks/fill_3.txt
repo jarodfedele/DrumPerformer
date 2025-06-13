@@ -1,0 +1,60 @@
+qn_length=0.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=snare reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=tom_1 reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=tom_1 reaper_id=2
+qn_length=0.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=tom_1 reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=tom_1 reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=tom_1 reaper_id=2
+qn_length=0.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=snare reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=tom_1 reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=tom_2 reaper_id=2
+qn_length=0.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=snare reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=tom_2 reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=tom_1 reaper_id=2
+qn_length=0.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=snare reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=snare reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=snare reaper_id=2
+qn_length=0.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=snare reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=tom_1 reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=snare reaper_id=2
+qn_length=0.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=tom_1 reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=snare reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=snare reaper_id=2
+qn_length=0.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=tom_1 reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=snare reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=kick reaper_id=2
+qn_length=0.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=tom_1 reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=kick reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=kick reaper_id=2
+qn_length=0.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=kick reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=snare reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=kick reaper_id=2
+qn_length=0.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=kick reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=snare reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=snare reaper_id=2
+qn_length=0.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=kick reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=kick reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=snare reaper_id=2
+qn_length=0.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=kick reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=tom_1 reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=snare reaper_id=2
+qn_length=0.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=tom_5 reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=kick reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=tom_4 reaper_id=2
+qn_length=0.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=tom_3 reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=tom_4 reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=kick reaper_id=2

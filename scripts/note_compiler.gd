@@ -40,7 +40,7 @@ func run(chart_type):
 	var globalized_song_data_file_path = ProjectSettings.globalize_path(Directory.SONG_DATA_FILE_PATH)
 	var globalized_output_file_path = ProjectSettings.globalize_path(Directory.OUTPUT_TEXT_FILE_PATH)
 	var note_map_file_text = Utils.read_text_file(Directory.NOTE_MAP_TEXT_FILE_PATH)
-	var chunks_file_text = Utils.read_text_file(Directory.CHUNKS_TEXT_FILE_PATH)
+	var chunks_file_text = Global.chunks_file_text
 	var img_sizes_file_text = Utils.read_text_file(Directory.IMG_SIZES_FILE_PATH)
 	var tempos_file_text = Utils.read_text_file(ProjectSettings.globalize_path(Global.current_song_path + "tempos.txt"))
 	var events_file_text = Utils.read_text_file(ProjectSettings.globalize_path(Global.current_song_path + "events.txt"))

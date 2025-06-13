@@ -25,7 +25,7 @@ render_target_update_mode = 4
 
 [node name="Background" type="Polygon2D" parent="ContentsSubViewport"]
 unique_name_in_owner = true
-color = Color(0, 0, 0, 1)
+color = Color(0.0901961, 0.0901961, 0.0901961, 0.878431)
 
 [node name="Hitbox" type="Polygon2D" parent="ContentsSubViewport"]
 unique_name_in_owner = true

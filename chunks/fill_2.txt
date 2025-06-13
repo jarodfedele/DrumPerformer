@@ -1,0 +1,3 @@
+qn_length=0.5 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=tom_1 reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=tom_1 reaper_id=1

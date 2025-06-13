@@ -28,7 +28,9 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	DRAWBEAM_END = 10
 
 	SPECIAL_MEASURE_HEADER_LIST = {"gaps"}
-
+	
+	MAX_FILL_NUM_SIXTEENTHS = 16
+	
 	-----
 	
 	ERROR_INVALIDTAKE = 0
@@ -94,6 +96,8 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	MEASURELISTINDEX_RESTOFFSET2 = 18
 	MEASURELISTINDEX_VALIDCURRENTMEASURE = 19
 	MEASURELISTINDEX_MULTIREST = 20
+	MEASURELISTINDEX_JAM_NUMSIXTEENTHS = 21
+	MEASURELISTINDEX_JAM_KICKSNAREINDEX = 22
 
 	NOTELISTINDEX_STARTPPQPOS = 1
 	NOTELISTINDEX_ENDPPQPOS = 2
@@ -255,7 +259,17 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  {"x", 0.1},
 	  {"circle-x", 0.1}
 	}
-
+	
+	TIMEKEEPER_NOTETYPE_LIST = {"china_r", "crash_r", "stack_r", "splash_r", "hihat", "ride"}
+	TIMEKEEPER_PATTERN_LIST = {
+	{"quarters", {4}},
+	{"offbeat_quarters", {-2,2}},
+	{"eighths", {2}},
+	{"dotted_eighths", {3}},
+	{"sixteenths", {1}},
+	{"one_eighth_two_sixteenths", {2,1,1}}
+	}
+	
 	-----------------------HELPER FUNCTIONS-------------------------
 	
 	local function debug_printStack()
@@ -351,6 +365,10 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  return select(2, str:gsub(char, ""))
 	  end
 	
+	local function chance(percentage)
+	  return math.random() < percentage
+	  end
+	  
 	local function gcd(a, b)
 	  while b ~= 0 do
 		  a, b = b, a % b
@@ -837,6 +855,20 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  throwError("Trying to calculate position past [end] event! (" .. qn .. ")")
 	  end
 	
+	local function qnBoundsToTime(startQN, endQN)
+	  local startTime = qnToValueFromTempoMap(startQN, "time")
+	  local endTime = qnToValueFromTempoMap(endQN, "time")
+	  return roundFloatingPoint(endTime - startTime)
+	  end
+	  
+	local function qnToNPS(startQN, endQN)
+	  local timeDiff = qnBoundsToTime(startQN, endQN)
+	  if timeDiff == 0 then
+	    throwError("qnToNPS timeDiff is 0!")
+		end
+	  return roundFloatingPoint(1/timeDiff)
+	  end
+	  
 	local function getRestYCoordinates(restLabel)
 	  local num = tonumber(string.sub(restLabel, 6, #restLabel))
 	  local index = round(math.log(num)/math.log(2) + 1)
@@ -1308,7 +1340,23 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  
 	  return roundFloatingPoint(convertRange(qn, boundStart, boundEnd, result-1, result))
 	  end
-
+	
+	local function getMeasureQNStart(measureIndex)
+	  local measureData = measureList[measureIndex]
+	  return measureData[MEASURELISTINDEX_QN]
+	  end
+	  
+	local function getMeasureQNEnd(measureIndex)
+	  if measureIndex == #measureList then
+		return endEvtQN
+	    end
+	  return measureList[measureIndex+1][MEASURELISTINDEX_QN]
+	  end
+	
+	local function getMeasureQNBounds(measureIndex)
+	  return getMeasureQNStart(measureIndex), getMeasureQNEnd(measureIndex)
+	  end
+	  
 	local function getQNFromBeat(beatTable, beat)
 	  local flooredBeat = floor(beat)
 	  local flooredBeatStart = flooredBeat
@@ -2106,7 +2154,7 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  
 	  chartBeatList = {}
 	  notationBeatList = {}
-	  measurePhraseList = {}
+	  measurePhraseTimeList = {}
 	  sectionTextEvtList = {}
 	  tempoTextEvtList = {}
 	  measureList = {}
@@ -2139,8 +2187,8 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			subTable[BEATLISTINDEX_BEATTYPE] = getValueFromTable(values, "beat_type")
 			end
 		  if currentHeader == "MEASURE_PHRASE_LIST" then
-			tableInsert(measurePhraseList, {})
-			local subTable = measurePhraseList[#measurePhraseList]
+			tableInsert(measurePhraseTimeList, {})
+			local subTable = measurePhraseTimeList[#measurePhraseTimeList]
 			subTable[BEATLISTINDEX_PPQPOS] = getValueFromTable(values, "ppqpos")
 			subTable[BEATLISTINDEX_TIME] = getValueFromTable(values, "time")
 			subTable[BEATLISTINDEX_QN] = getValueFromTable(values, "qn")
@@ -2216,22 +2264,34 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  end
 	
 	local function storeChunkListIntoMemory()
-	  chunkList = {}
+	  kicksnareListByNumSixteenths = {}
+	  timekeeperListByNumSixteenths = {} --TODO: likely to remove
+	  fillListByNumSixteenths = {}
 	  
-	  CHUNKLISTINDEX_LENGTH = 1
-	  CHUNKLISTINDEX_NOTELINES = 2
-	  CHUNKLISTINDEX_SNAREPOSLIST = 3
-	  CHUNKLISTINDEX_KICKPOSLIST = 4
+	  CHUNKLISTINDEX_NOTELINES = 1
+	  CHUNKLISTINDEX_SNAREPOSLIST = 2
+	  CHUNKLISTINDEX_KICKPOSLIST = 3
 	  
 	  local subTable
 	  for line in chunksFileText:gmatch("[^\r\n]+") do
 		local values = separateString(line)
 		
-		local length = getValueFromTable(values, "qn_length")
-		if length then
-		  table.insert(chunkList, {})
-		  subTable = chunkList[#chunkList]
-		  subTable[CHUNKLISTINDEX_LENGTH] = length
+		local patternType = getValueFromTable(values, "pattern_type")
+		if patternType then
+		  local qnLength = getValueFromTable(values, "qn_length")
+		  local numSixteenths = round(qnLength*4)
+		  
+		  local tableToInsert
+		  if patternType == "kicksnare" then tableToInsert = kicksnareListByNumSixteenths end
+		  if patternType == "timekeeper" then tableToInsert = timekeeperListByNumSixteenths end
+		  if patternType == "fill" then tableToInsert = fillListByNumSixteenths end
+		  
+		  if not tableToInsert[numSixteenths] then
+			tableToInsert[numSixteenths] = {}
+			end
+			
+		  table.insert(tableToInsert[numSixteenths], {})
+		  subTable = tableToInsert[numSixteenths][#tableToInsert[numSixteenths]]
 		  subTable[CHUNKLISTINDEX_NOTELINES] = {}
 		  subTable[CHUNKLISTINDEX_SNAREPOSLIST] = {}
 		  subTable[CHUNKLISTINDEX_KICKPOSLIST] = {}
@@ -2254,17 +2314,269 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 	  --[[
 	  reaper.ShowConsoleMsg("---CHUNK LIST---\n")
 	  for i, subTable in ipairs(chunkList) do
-	    reaper.ShowConsoleMsg("LENGTH: " .. subTable[CHUNKLISTINDEX_LENGTH] .. "\n")
 		reaper.ShowConsoleMsg("NUM SNARES: " .. #subTable[CHUNKLISTINDEX_SNAREPOSLIST] .. "\n")
 		reaper.ShowConsoleMsg("NUM KICKS: " .. #subTable[CHUNKLISTINDEX_KICKPOSLIST] .. "\n")
 		end
 	  --]]
 	  end
+	
+	local function getQNChordData(index, isStartQN, allowClosestLower)
+	  local isExact = true
+	  if isStartQN then
+	    local exactIndex = exactBinarySearch(qnChordList, index, 1)
+		if exactIndex then
+		  index = exactIndex
+		elseif allowClosestLower then
+		  isExact = false
+		  index = findClosestIndexAtOrBelow(qnChordList, index, 1)
+		else
+		  index = nil
+		  end
+	    end
+	  if index and index >= 1 and index <= #qnChordList then
+	    return qnChordList[index], index, isExact
+	    end
+	  end
 	  
+    local function getQNChordListNoteList(index, isStartQN, allowClosestLower)
+	  local isExact = true
+	  if isStartQN then
+	    local exactIndex = exactBinarySearch(qnChordList, index, 1)
+		if exactIndex then
+		  index = exactIndex
+		elseif allowClosestLower then
+		  isExact = false
+		  index = findClosestIndexAtOrBelow(qnChordList, index, 1)
+		else
+		  index = nil
+		  end
+	    end
+	  if index and index >= 1 and index <= #qnChordList then
+	    return qnChordList[index][2], index, isExact
+	    end
+	  end
+	
+	local function hasTimekeeper(qnChordData)
+	  local qnChordNoteList = qnChordData[2]
+	  for i, noteData in ipairs(qnChordNoteList) do
+	    local noteType = noteData[QNCHORDLISTINDEX_NOTETYPE]
+		if isInTable(TIMEKEEPER_NOTETYPE_LIST, noteType) then
+		  return noteType 
+		  end
+		end
+	  return false
+	  end
+	  
+	local function qnNoteListGetNoteIndex(qnChordData, noteType, optionalNoteState, optionalVelocity)
+	  local qnChordNoteList = qnChordData[2]
+	  for index, noteData in ipairs(qnChordNoteList) do
+	    local testNoteType = noteData[QNCHORDLISTINDEX_NOTETYPE]
+		local testNoteState = noteData[QNCHORDLISTINDEX_NOTESTATE]
+		local testVelocity = noteData[QNCHORDLISTINDEX_VELOCITY]
+		
+	    if testNoteType == noteType and
+		(not optionalNoteState or testNoteState == optionalNoteState) and
+		(not optionalVelocity or testVelocity == optionalVelocity) then
+		  return index, testNoteType, testNoteState, testVelocity
+		  end
+	    end
+	  end
+	  
+    local function addToQNChordList(startQN, noteType, noteState, velocity, endQN)
+	  local qnChordData = getQNChordData(startQN, true)
+	  if qnChordData and qnNoteListGetNoteIndex(qnChordData, noteType) then return end
+	  
+	  local dataToInsert = {}
+	  dataToInsert[QNCHORDLISTINDEX_NOTETYPE] = noteType
+	  dataToInsert[QNCHORDLISTINDEX_NOTESTATE] = noteState
+	  dataToInsert[QNCHORDLISTINDEX_VELOCITY] = velocity
+	  dataToInsert[QNCHORDLISTINDEX_ENDQN] = endQN
+	
+	  local index = findIndexInListEqualOrLessThan(qnChordList, startQN, 1)
+	  if not index then
+	    index = 1
+	    table.insert(qnChordList, index, {startQN, {}})
+	  elseif qnChordList[index][1] ~= startQN then
+	    index = index + 1
+	    table.insert(qnChordList, index, {startQN, {}})
+	    end
+	  
+	  local qnChordNoteList = getQNChordListNoteList(index)
+	  table.insert(qnChordNoteList, dataToInsert)
+	  end
+
+    local function removeFromQNChordList(startQN, noteType)
+	  local qnChordNoteList, index = getQNChordListNoteList(startQN, true)
+	  for i, noteData in ipairs(qnChordNoteList) do
+	    if noteData[QNCHORDLISTINDEX_NOTETYPE] == noteType then
+		  table.remove(qnChordNoteList, i)
+		  if #qnChordNoteList == 0 then
+		    table.remove(qnChordList, index)
+		    end
+		  break
+		  end
+	    end
+	  end
+	  
+	local function addTimekeeperToQNChordList(startQN, numSixteenths, noteType, timekeeperPatternIndex, isDisco)
+	  local timekeeperPatternData = TIMEKEEPER_PATTERN_LIST[timekeeperPatternIndex]
+	  local timekeeperPatternSixteenthList = timekeeperPatternData[2]
+	  local endQN = roundFloatingPoint(startQN + numSixteenths/4)
+	  local currentQN = startQN
+	  while true do
+	    for j, sixteenthVal in ipairs(timekeeperPatternSixteenthList) do
+		  local qn = roundFloatingPoint(sixteenthVal/4)
+		  if qn > 0 then
+		    local qnChordData = getQNChordData(currentQN, true)
+		    if not (isDisco and qnChordData and qnNoteListGetNoteIndex(qnChordData, "snare")) then
+		      local noteState
+			  if noteType == "hihat" then
+			    noteState = "closed"
+			  else
+			    noteState = "normal"
+			    end
+			  local velocity = 100 --TODO: write code to modify velocity (every other accent, etc.)
+			  addToQNChordList(currentQN, noteType, noteState, velocity, -1)
+			  end
+			end
+		  currentQN = roundFloatingPoint(currentQN + math.abs(qn))
+		  if currentQN >= endQN then
+		    return
+			end
+		  end
+		end
+	  end
+	
+	local function addGhostSnaresToQNChordList(measureIndex, numGhostNoteAttempts)
+	  local measureQNStart, measureQNEnd = getMeasureQNBounds(measureIndex)
+	  local numSixteenths = round((measureQNEnd - measureQNStart)*4)
+	  
+	  local qnSlots = {}
+	  for i=1, numGhostNoteAttempts do
+	    local sixteenthSlot = math.random(numSixteenths) - 1 --TODO: what if triplets?
+		local startQN = roundFloatingPoint(convertRange(sixteenthSlot, 0, numSixteenths, measureQNStart, measureQNEnd))
+	    table.insert(qnSlots, startQN)
+		end
+	  table.sort(qnSlots)
+	  
+	  --in order from left to right
+	  for i, startQN in ipairs(qnSlots) do
+		local weight = 1
+	
+		local qnChordData, qnChordIndex, isExact = getQNChordData(startQN, true, true)
+		if qnChordIndex then
+		  local earlierQNChordIndex
+		  if isExact then
+			--invalidate if on top of kick
+			if qnNoteListGetNoteIndex(qnChordData, "kick") then
+			  weight = weight * 0  
+			  end
+			earlierQNChordIndex = qnChordIndex - 1
+		  else
+		    earlierQNChordIndex = qnChordIndex
+			end
+		  local earlierQNChordData = getQNChordData(earlierQNChordIndex)
+		  local laterQNChordData, laterQNChordIndex = getQNChordData(qnChordIndex+1)
+		  local earlierEarlierQNChordData = getQNChordData(earlierQNChordIndex-1)
+		  
+		  --ghost snare before normal snare
+		  if laterQNChordData then
+		    local qnDistance = roundFloatingPoint(laterQNChordData[1]-startQN)
+		    if qnNoteListGetNoteIndex(laterQNChordData, "snare", nil, 100) and qnDistance <= 0.25 then
+			  weight = weight * 0.2 
+			  end
+		    end
+		  
+		  --ghost snare after normal snare
+		  if earlierQNChordData then
+		    local qnDistance = roundFloatingPoint(startQN-earlierQNChordData[1])
+		    if qnNoteListGetNoteIndex(earlierQNChordData, "snare", nil, 100) and qnDistance <= 0.25 then
+			  weight = weight * 0.4
+			  end
+		    end
+		
+		  --ghost snare after normal snare (invalidate if two preceding snares total 8th apart)
+		  if earlierEarlierQNChordData then
+		    local qnDistance = roundFloatingPoint(startQN-earlierEarlierQNChordData[1])
+			if qnNoteListGetNoteIndex(earlierEarlierQNChordData, "snare") and qnNoteListGetNoteIndex(earlierQNChordData, "snare") and qnDistance <= 0.5 then
+			  weight = weight * 0
+			  end
+			end
+		  end
+		 
+		if chance(weight) then
+		  addToQNChordList(startQN, "snare", "head", 1, -1)
+		  end
+		end
+	  end
+	
+	local function doesTimekeeperPatternHaveSixteenths(timekeeperPatternData)
+	  local timekeeperPatternSixteenthList = timekeeperPatternData[2]
+	  return isInTable(timekeeperPatternSixteenthList, 1)
+	  end
+	  
+	local function isTimekeeperPatternDisco(timekeeperPatternData, startQN)
+	  local timekeeperPatternSixteenthList = timekeeperPatternData[2]
+	  local timekeeperSampleQNList = {}
+	  local currentQN = startQN
+	  for cycleID=0, 4 do --5 cycles should be enough for 3 and 4 checks
+	    for j, sixteenthVal in ipairs(timekeeperPatternSixteenthList) do
+		  local qn = roundFloatingPoint(sixteenthVal/4)
+		  if qn > 0 then
+			table.insert(timekeeperSampleQNList, currentQN)
+			end
+		  currentQN = roundFloatingPoint(currentQN + math.abs(qn))
+		  end
+		end
+	  
+	  local function runDiscoCheck(numConsecutiveHits, timeThreshold)
+	    for x=1, #timekeeperSampleQNList do
+	      if x <= #timekeeperSampleQNList-(numConsecutiveHits-1) then --checking 3 consecutive hits
+		    local startTime = timekeeperSampleQNList[x]
+		    local endTime = timekeeperSampleQNList[x+(numConsecutiveHits-1)]
+		    local time = qnBoundsToTime(startTime, endTime) / (numConsecutiveHits-1)
+		    if time <= timeThreshold then
+		      return true
+			  end
+		    end
+		  end
+		end
+		
+	  local DISCO_TIME_THRESHOLD_3_HITS = 0.11 -- ~136 BPM
+	  local DISCO_TIME_THRESHOLD_4_HITS = 0.13 -- ~115 BPM
+	  local DISCO_TIME_THRESHOLD_5_HITS = 0.15 -- ~100 BPM
+	  
+	  if runDiscoCheck(3, DISCO_TIME_THRESHOLD_3_HITS) then return true end
+	  if runDiscoCheck(4, DISCO_TIME_THRESHOLD_4_HITS) then return true end
+	  if runDiscoCheck(5, DISCO_TIME_THRESHOLD_5_HITS) then return true end
+	  
+	  return false
+	  end	
+
 	local function createJamTrackMIDI()
 	  storeChunkListIntoMemory()
 	  
 	  math.randomseed(os.time())
+	  math.random() --apparently first value can be bad?
+	  
+	  --Measures have properties. There is a 'rendering pipeline' to this:
+		--for each MEASURE PHRASE:
+			--establish kick/snare pattern for every measure, REGARDLESS of accents, timekeepers, etc.
+			--then, establish timekeepers for every measure, no random variation yet inside each timekeeper
+			--then, establish accents
+			--then, establish fill markers (influenced by accents) --TODO: connecting fills over measure line #TODO: random boolean if include first note of groove
+		--then, add ghost snares
+		--then, add accent notes (which may get rid of some ghost snares)
+		--then, add fill notes (these are specific, so they should be unobstructed! besides some velocity shaping post-processing)
+		
+	  MEASUREPHRASELIST_MEASUREINDEXSTART = 1
+	  MEASUREPHRASELIST_NUMMEASURES = 2
+	  MEASUREPHRASELIST_TIMEKEEPER_NOTETYPE = 3
+	  MEASUREPHRASELIST_TIMEKEEPER_PATTERN = 4
+	  MEASUREPHRASELIST_ISDISCO = 5
+	  MEASUREPHRASELIST_FILL_LIST = 6
+	  
+	  local measurePhraseList = {}
 	  
 	  local measurePhraseRegions = {}
 	  
@@ -2272,24 +2584,41 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		table.insert(measurePhraseRegions[#measurePhraseRegions], qn)
 		end
 		
-	  for i, measureData in ipairs(measureList) do
+	  for measureIndex, measureData in ipairs(measureList) do
 		local qn = measureData[MEASURELISTINDEX_QN]
-		local isMeasurePhrase = exactBinarySearch(measurePhraseList, qn, BEATLISTINDEX_QN)
+		local isMeasurePhrase = exactBinarySearch(measurePhraseTimeList, qn, BEATLISTINDEX_QN)
 		if isMeasurePhrase then
 		  if #measurePhraseRegions > 0 then
 		    add(qn)
 			end
 		  table.insert(measurePhraseRegions, {})
+		  
+		  if #measurePhraseList > 0 then
+			measurePhraseList[#measurePhraseList][MEASUREPHRASELIST_NUMMEASURES] = measureIndex - measurePhraseList[#measurePhraseList][MEASUREPHRASELIST_MEASUREINDEXSTART]
+			end
+		  table.insert(measurePhraseList, {})
+		  measurePhraseList[#measurePhraseList][MEASUREPHRASELIST_MEASUREINDEXSTART] = measureIndex
+		  measurePhraseList[#measurePhraseList][MEASUREPHRASELIST_FILL_LIST] = {}
 		  end
 		add(qn)
+		if measureIndex == #measureList then
+		  measurePhraseList[#measurePhraseList][MEASUREPHRASELIST_NUMMEASURES] = measureIndex - measurePhraseList[#measurePhraseList][MEASUREPHRASELIST_MEASUREINDEXSTART] + 1
+		  end
 		end
-	  local lastQN = measurePhraseList[#measurePhraseList][BEATLISTINDEX_QN]
+	  local lastQN = measurePhraseTimeList[#measurePhraseTimeList][BEATLISTINDEX_QN]
 	  add(lastQN)
 	  
-	  --TODO: split measure phrase regions a bit, maybe 17/16 to 15/16 instead of 4/4 to 4/4
-	  --TODO: if groove: fill at start of measure and/or fill at end of measure, or fill entire measure
+	  --print measure phrase list
+	  --[[
+	  reaper.ShowConsoleMsg("---MEASURE PHRASE LIST---\n")
+	  for i, data in ipairs(measurePhraseList) do
+		local measureIndexStart = data[MEASUREPHRASELIST_MEASUREINDEXSTART]
+		local numMeasures = data[MEASUREPHRASELIST_NUMMEASURES]
+		reaper.ShowConsoleMsg("MEASURE INDEX: " .. measureIndexStart .. ", NUM MEASURES: " .. numMeasures .. "\n")
+		end
+	  ]]--
 	  
-	  --print measure phrase regions
+	  --print measure phrase regions (OLD)
 	  --[[
 	  for i, data in ipairs(measurePhraseRegions) do
 		reaper.ShowConsoleMsg("-----\n")
@@ -2299,58 +2628,94 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 		end
 	  ]]--
 	  
-	  local masterRegionList = {}
+	  qnChordList = {}
 	  
-	  for i, data in ipairs(measurePhraseRegions) do
-		for j=1, #data-1 do
-		  local qn = data[j]
-		  table.insert(masterRegionList, qn)
-		  end
-		end
-	  table.insert(masterRegionList, lastQN)
+	  QNCHORDLISTINDEX_NOTETYPE = 1
+	  QNCHORDLISTINDEX_NOTESTATE = 2
+	  QNCHORDLISTINDEX_VELOCITY = 3
+	  QNCHORDLISTINDEX_ENDQN = 4
 	  
-	  local readyMIDILines = {}
-	  local currentQNOffset = measurePhraseList[1][BEATLISTINDEX_QN]
-	  
-	  for x=1, #masterRegionList-1 do
-		local qnStart = masterRegionList[x]
-		local qnEnd = masterRegionList[x+1]
-		local qnLength = roundFloatingPoint(qnEnd-qnStart)
+	  --process every measure phrase
+	  local fillList = {}
+	  for measurePhraseIndex, measurePhraseData in ipairs(measurePhraseList) do
+		local numMeasures = measurePhraseData[MEASUREPHRASELIST_NUMMEASURES]
+		local measureIndexStart = measurePhraseData[MEASUREPHRASELIST_MEASUREINDEXSTART]
+		local measureIndexEnd = measureIndexStart+numMeasures-1
 		
-		--TODO: for now, strictly fill regions based on its length, good for odd fills but not
-		--really for grooves (should still respect meter), maybe ultimately too unnecessarily complicated
+		local timekeeperNoteType = TIMEKEEPER_NOTETYPE_LIST[math.random(#TIMEKEEPER_NOTETYPE_LIST)]
+		measurePhraseData[MEASUREPHRASELIST_TIMEKEEPER_NOTETYPE] = timekeeperNoteType
 		
-		local validChunkIDs = {}
-		
-		for chunkID, chunkData in ipairs(chunkList) do
-		  if chunkData[CHUNKLISTINDEX_LENGTH] == qnLength then
-		    table.insert(validChunkIDs, chunkID)
+		local validTimekeeperPatternList = {}
+		for i, timekeeperPatternData in ipairs(TIMEKEEPER_PATTERN_LIST) do
+		  local timekeeperPatternName = timekeeperPatternData[1]
+		  local isValid = true
+		  
+		  if isTimekeeperPatternDisco(timekeeperPatternData, getMeasureQNStart(measureIndexStart)) then
+		    if timekeeperNoteType ~= "hihat" then
+			  isValid = false
+			  end
+			end
+		  if doesTimekeeperPatternHaveSixteenths(timekeeperPatternData) then
+		    if timekeeperNoteType == "china_r" or timekeeperNoteType == "crash_r" then
+			  isValid = false
+			  end
+			end
+		  if timekeeperPatternName == "offbeat_quarters" then
+		    if timekeeperNoteType == "crash_r" then
+			  isValid = false
+			  end
+			end
+			
+		  if isValid then
+		    table.insert(validTimekeeperPatternList, timekeeperPatternName)
 			end
 		  end
 		
-		while true do
-		  --reaper.ShowConsoleMsg("NUM VALID CHUNKS: " .. #validChunkIDs .. "\n")		
-		  if #validChunkIDs == 0 then
-		    throwError("No valid chunk IDs at qn=" .. qnStart .. "!")
-		    end
+		if #validTimekeeperPatternList == 0 then
+		  throwError("No valid timekeeper patterns! " .. timekeeperNoteType)
+		  end
 		  
-		  local validChunkIndex = math.random(#validChunkIDs)
-		  local validChunkID = validChunkIDs[validChunkIndex]
-		  local chunkData = chunkList[validChunkID]
-		  local isValidChunk = true --TODO: write some filters to potentially invalidate the chunk
+		local timekeeperPattern = validTimekeeperPatternList[math.random(#validTimekeeperPatternList)]
+		local timekeeperPatternIndex = isInTable(TIMEKEEPER_PATTERN_LIST, timekeeperPattern)
+		local timekeeperPatternData = TIMEKEEPER_PATTERN_LIST[timekeeperPatternIndex]
+		measurePhraseData[MEASUREPHRASELIST_TIMEKEEPER_PATTERN] = timekeeperPattern
+		
+		local isDisco = isTimekeeperPatternDisco(timekeeperPatternData, getMeasureQNStart(measureIndexStart))
+		measurePhraseData[MEASUREPHRASELIST_ISDISCO] = isDisco
+		
+		--reaper.ShowConsoleMsg("-----MEASURE PHRASE INDEX: " .. measurePhraseIndex .. "-----\n")
+		
+		local measurePhraseQNStart, measurePhraseQNEnd
+		for measureIndex=measureIndexStart, measureIndexEnd do
+		  local measureData = measureList[measureIndex]
 		  
-		  --convert readyChunks to midi lines! (midi.txt)
-		  local midiLines = {}
-		  local length = chunkData[CHUNKLISTINDEX_LENGTH]
-		  local noteLines = chunkData[CHUNKLISTINDEX_NOTELINES]
+		  local measureQNStart, measureQNEnd = getMeasureQNBounds(measureIndex)
+		  
+		  if measureIndex == measureIndexStart then
+			measurePhraseQNStart = measureQNStart
+			end
+		  if measureIndex == measureIndexEnd then
+			measurePhraseQNEnd = measureQNEnd
+			end		  
+		  local qnLength = roundFloatingPoint(measureQNEnd-measureQNStart)
+		  local numSixteenths = round(qnLength*4)
+		  measureData[MEASURELISTINDEX_JAM_NUMSIXTEENTHS] = numSixteenths
+		  if roundFloatingPoint(qnLength*4) ~= numSixteenths then
+			throwError("Bad measure length! " .. measureIndex .. " " .. measureQNStart .. " " .. measureQNEnd .. "\n")
+			end
+		  
+		  local kicksnareIndex = math.random(#kicksnareListByNumSixteenths[numSixteenths])
+		  measureData[MEASURELISTINDEX_JAM_KICKSNAREINDEX] = kicksnareIndex
+		  
+		  --reaper.ShowConsoleMsg("  NUMSIXTEENTHS: " .. numSixteenths .. ", KICKSNARE INDEX: " .. kicksnareIndex .. ", TIMEKEEPER NOTE TYPE: " .. timekeeperNoteType .. ", TIMEKEEPER PATTERN: " .. timekeeperPattern .. "\n")
+		  
+		  local kicksnareData = kicksnareListByNumSixteenths[numSixteenths][kicksnareIndex]
+		  
+		  local noteLines = kicksnareData[CHUNKLISTINDEX_NOTELINES]
 		  for j, line in ipairs(noteLines) do
-			local startQN = getValueFromKey(line, "qn_start") + currentQNOffset
-			local endQN = getValueFromKey(line, "qn_end") + currentQNOffset
-			local startPPQPOS = qnToValueFromTempoMap(startQN, "ppqpos")
-			local endPPQPOS = qnToValueFromTempoMap(endQN, "ppqpos")
-			local startTime = qnToValueFromTempoMap(startQN, "time")
-			local endTime = qnToValueFromTempoMap(endQN, "time")
-			
+			local startQN = getValueFromKey(line, "qn_start") + measureQNStart
+			local endQN = getValueFromKey(line, "qn_end") + measureQNStart
+
 			local genericType = getValueFromKey(line, "type")
 		    local noteType, noteState
 			if genericType == "kick" then
@@ -2361,59 +2726,204 @@ function runGodotReaperEnvironment(isReaper, reaperProcessingCurrentMeasureIndex
 			  noteType = "snare"
 			  noteState = "head"
 			  end
-			if genericType == "tom_1" then
-			  noteType = "racktom_1"
-			  noteState = "head"
-			  end
-			if genericType == "tom_2" then
-			  noteType = "racktom_2"
-			  noteState = "head"
-			  end
-			if genericType == "tom_3" then
-			  noteType = "racktom_3"
-			  noteState = "head"
-			  end
-			if genericType == "tom_4" then
-			  noteType = "floortom_1"
-			  noteState = "head"
-			  end
-			if genericType == "tom_5" then
-			  noteType = "floortom_2"
-			  noteState = "head"
-			  end
-			if genericType == "cymbal_r" then
-			  noteType = "ride"
-			  noteState = "normal"
-			  end
-			if genericType == "cymbal_l" then
-			  noteType = "hihat"
-			  noteState = "closed"
-			  end
-			  
-		    local midiNoteNum, channel = getNoteMIDINoteNumAndChannel(noteType, noteState)
-			
+
 			local velocity = 100 --TODO: write code to modify velocity
 			
-		    table.insert(midiLines, "ppqpos_start=" .. startPPQPOS .. " time_start=" .. startTime .. " qn_start=" .. startQN .. " ppqpos_end=" .. endPPQPOS .. " time_end=" .. endTime .. " qn_end=" .. endQN .. " channel=" .. channel .. " pitch=" .. midiNoteNum .. " velocity=" .. velocity)
+			addToQNChordList(startQN, noteType, noteState, velocity, endQN)
 			end
+		
+		  addTimekeeperToQNChordList(measureQNStart, numSixteenths, timekeeperNoteType, timekeeperPatternIndex, isDisco)
 		  
-		  if isValidChunk then
-		    for i, line in ipairs(midiLines) do
-			  table.insert(readyMIDILines, line)
-			  end
-			currentQNOffset = currentQNOffset + length
-		    break
-		  else
-		    table.remove(validChunkIDs, validChunkIndex)
+		  if not isDisco then
+		    local numGhostSnareAttempts = 10 --TODO: random
+		    addGhostSnaresToQNChordList(measureIndex, numGhostSnareAttempts)
 			end
 		  end
 		
-		for noteID=0, #readyMIDILines-1 do
-		  readyMIDILines[noteID+1] = readyMIDILines[noteID+1] .. " id=" .. noteID
+		local measurePhraseQNLength = roundFloatingPoint(measurePhraseQNEnd - measurePhraseQNStart)
+		local measurePhraseNumSixteenths = round(measurePhraseQNLength*4)
+		
+		local fillCount = 1 --TODO: random	
+		for i=1, fillCount do --TODO: doesn't make sense when fillCount > 1
+		  local fillNumSixteenths = math.random(MAX_FILL_NUM_SIXTEENTHS)
+		  local fillNumSixteenthsPosition = measurePhraseNumSixteenths - fillNumSixteenths
+		  fillNumSixteenthsPosition = math.max(fillNumSixteenthsPosition, 0)
+		  local fillStartQN = roundFloatingPoint(convertRange(fillNumSixteenthsPosition, 0, measurePhraseNumSixteenths, measurePhraseQNStart, measurePhraseQNEnd))
+		  local fillEndQN = measurePhraseQNEnd
+		  local fillIndex = math.random(#fillListByNumSixteenths[fillNumSixteenths])
+		  table.insert(measurePhraseData[MEASUREPHRASELIST_FILL_LIST], {fillStartQN, fillEndQN, fillIndex})
+		  table.insert(fillList, {fillStartQN, fillEndQN, fillIndex})
+		  --reaper.ShowConsoleMsg("STARTING MEASURE INDEX: " .. measureIndexStart .. ", QN: (" .. measurePhraseQNStart .. ", " .. measurePhraseQNEnd .. ")" .. ", TIMEKEEPER NOTE TYPE: " .. timekeeperNoteType .. ", TIMEKEEPER PATTERN: " .. timekeeperPattern .. ", FILL NUM SIXTEENTHS: " .. fillNumSixteenths .. ", FILL POSITION: " .. fillQNPosition .. "\n")
+		  end
+		end
+	  
+	  ---AT THIS POINT, ONLY KICKSNARES, GHOST SNARES, AND TIMEKEEPERS ARE CHARTED---
+	  
+	  --remove ghost snares with a long gap after them
+	  for qnChordListIndex=#qnChordList-1, 1, -1 do
+		local qnChordData = qnChordList[qnChordListIndex]
+		local startQN = qnChordData[1]
+		local nextQNChordData = qnChordList[qnChordListIndex+1]
+		local nextStartQN = nextQNChordData[1]
+		local qnGap = roundFloatingPoint(nextStartQN - startQN)
+		local noteIndex = qnNoteListGetNoteIndex(qnChordData, "snare", nil, 1)
+		if noteIndex and qnGap >= 0.5 then
+		  removeFromQNChordList(startQN, "snare")
+		  end
+		end
+	  
+	  --remove ghost snares with a timekeeper if the ghost snare isn't followed by a kick quickly enough
+	  for qnChordListIndex=#qnChordList-1, 1, -1 do
+		local qnChordData = qnChordList[qnChordListIndex]
+		local startQN = qnChordData[1]
+		local nextQNChordData = qnChordList[qnChordListIndex+1]
+		local nextStartQN = nextQNChordData[1]
+		local qnGap = roundFloatingPoint(nextStartQN - startQN)
+		local noteIndex = qnNoteListGetNoteIndex(qnChordData, "snare", nil, 1)
+		if noteIndex and hasTimekeeper(qnChordData) then
+		  if not qnNoteListGetNoteIndex(nextQNChordData, "kick") or qnGap >= 0.5 then
+		    removeFromQNChordList(startQN, "snare")
+		    end
+		  end
+		end
+	
+	  --if ghost snare, ghost snare, normal snare (8th total), delete first one
+	  for qnChordListIndex=#qnChordList-1, 3, -1 do
+		local qnChordData = qnChordList[qnChordListIndex]
+		local earlierQNChordData = qnChordList[qnChordListIndex-1]
+		local earlierEarlierQNChordData = qnChordList[qnChordListIndex-2]
+		
+		local qnDistance = qnChordData[1] - earlierEarlierQNChordData[1]
+		
+		if qnNoteListGetNoteIndex(earlierEarlierQNChordData, "snare", nil, 1) and 
+		  qnNoteListGetNoteIndex(earlierQNChordData, "snare", nil, 1) and 
+		  qnNoteListGetNoteIndex(qnChordData, "snare", nil, 100) and
+		  qnDistance <= 0.5 then
+		  
+		  removeFromQNChordList(earlierEarlierQNChordData[1], "snare")
+		  end
+		end
+		
+	  --if ghost snare in middle of three timekeeper sixteenths, get rid of that middle timekeeper! (adds natural variety to timekeeping too)
+	  for qnChordListIndex=#qnChordList-1, 3, -1 do
+		local qnChordData = qnChordList[qnChordListIndex]
+		local earlierQNChordData = qnChordList[qnChordListIndex-1]
+		local earlierEarlierQNChordData = qnChordList[qnChordListIndex-2]
+
+		if hasTimekeeper(earlierEarlierQNChordData) and
+		  hasTimekeeper(earlierQNChordData) and
+		  hasTimekeeper(qnChordData) and
+		  qnNoteListGetNoteIndex(earlierQNChordData, "snare", nil, 1) then
+		  
+		  local noteType = hasTimekeeper(earlierQNChordData)
+		  removeFromQNChordList(earlierQNChordData[1], noteType)
+		  end
+		end	
+	
+	  ---ADD ACCENTS---
+	  
+	  ---ADD FILLS---
+	  
+	  for i, fillBounds in ipairs(fillList) do
+	    local fillStartQN = fillBounds[1]
+		local fillEndQN = fillBounds[2]
+		local fillIndex = fillBounds[3]
+		
+		local fillQNLength = roundFloatingPoint(fillEndQN-fillStartQN)
+		local fillNumSixteenths = round(fillQNLength*4)
+		
+		--remove contents to make space for fill
+		local startQNChordData, startIndex, isExact = getQNChordData(fillStartQN, true, true)
+		local qnChordListIndex = startIndex
+		if not isExact then
+		  qnChordListIndex = qnChordListIndex + 1
+		  end
+		  
+		while qnChordListIndex <= #qnChordList do
+		  local qnChordData = qnChordList[qnChordListIndex]
+		  local startQN = qnChordData[1]
+		  if startQN >= fillEndQN then
+		    break
+			end
+		  table.remove(qnChordList, qnChordListIndex)
 		  end
 		
-	    midiFileText = "NOTES\n" .. table.concat(readyMIDILines, "\n")
+	    local fillData = fillListByNumSixteenths[fillNumSixteenths][fillIndex]
+	    local noteLines = fillData[CHUNKLISTINDEX_NOTELINES]
+	    for j, line in ipairs(noteLines) do
+		  local startQN = getValueFromKey(line, "qn_start") + fillStartQN
+		  local endQN = getValueFromKey(line, "qn_end") + fillStartQN
+
+		  local genericType = getValueFromKey(line, "type")
+		  local noteType, noteState
+		  if genericType == "kick" then
+		    noteType = "kick"
+		    noteState = "head_r"
+		    end
+		  if genericType == "snare" then
+		    noteType = "snare"
+		    noteState = "head"
+		    end
+		  if genericType == "cymbal" then
+		    noteType = "splash"
+		    noteState = "normal"
+		    end
+		  if genericType == "tom_1" then
+		    noteType = "racktom_1"
+		    noteState = "head"
+		    end
+		  if genericType == "tom_2" then
+		    noteType = "racktom_2"
+		    noteState = "head"
+		    end
+		  if genericType == "tom_3" then
+		    noteType = "racktom_3"
+		    noteState = "head"
+		    end
+		  if genericType == "tom_4" then
+		    noteType = "floortom_1"
+		    noteState = "head"
+		    end
+		  if genericType == "tom_5" then
+		    noteType = "floortom_2"
+		    noteState = "head"
+		    end
+			
+		  local velocity = 100 --TODO: write code to modify velocity
+		
+		  addToQNChordList(startQN, noteType, noteState, velocity, endQN)
+		  end
 		end
+	  
+	  --write final qnChordList to midi!
+	  local midiLines = {}
+	  for x=1, #qnChordList do
+		local startQN = qnChordList[x][1]
+		local qnChordNoteList = qnChordList[x][2]
+		for i, noteData in ipairs(qnChordNoteList) do
+		  local noteType = noteData[QNCHORDLISTINDEX_NOTETYPE]
+		  local noteState = noteData[QNCHORDLISTINDEX_NOTESTATE]
+		  local velocity = noteData[QNCHORDLISTINDEX_VELOCITY]
+		  local endQN = noteData[QNCHORDLISTINDEX_ENDQN]
+		  
+		  local startPPQPOS = qnToValueFromTempoMap(startQN, "ppqpos")
+		  local endPPQPOS = qnToValueFromTempoMap(endQN, "ppqpos")
+		  local startTime = qnToValueFromTempoMap(startQN, "time")
+		  local endTime = qnToValueFromTempoMap(endQN, "time")
+		  
+		  local midiNoteNum, channel = getNoteMIDINoteNumAndChannel(noteType, noteState)
+		  
+		  table.insert(midiLines, "id=" .. #midiLines .. " ppqpos_start=" .. startPPQPOS .. " time_start=" .. startTime .. " qn_start=" .. startQN .. " ppqpos_end=" .. endPPQPOS .. " time_end=" .. endTime .. " qn_end=" .. endQN .. " channel=" .. channel .. " pitch=" .. midiNoteNum .. " velocity=" .. velocity)
+		  end
+		end
+	  
+	  midiFileText = "NOTES\n" .. table.concat(midiLines, "\n")
+	  
+	  midiFileText = midiFileText ..
+		"\nTEXTS\n" .. 
+		"id=1 ppqpos=0.0 time=0.0 qn=0.0 event_type=1 `message=ghostthresh 20`\n" ..
+		"id=2 ppqpos=0.0 time=0.0 qn=0.0 event_type=1 `message=accentthresh 101`\n" ..
+		"id=3 ppqpos=0.0 time=0.0 qn=0.0 event_type=1 `message=beamoverrests on`"
 	  end
 	  
 	local function addNotationStrToList()

@@ -1,0 +1,16 @@
+qn_length=3.75 pattern_type=fill
+id=0 qn_start=0.0 qn_end=0.25 type=tom_1 reaper_id=0
+id=1 qn_start=0.25 qn_end=0.5 type=tom_1 reaper_id=1
+id=2 qn_start=0.5 qn_end=0.75 type=tom_1 reaper_id=2
+id=3 qn_start=0.75 qn_end=1.0 type=tom_1 reaper_id=3
+id=4 qn_start=1.0 qn_end=1.25 type=tom_1 reaper_id=4
+id=5 qn_start=1.25 qn_end=1.5 type=tom_1 reaper_id=5
+id=6 qn_start=1.5 qn_end=1.75 type=tom_1 reaper_id=6
+id=7 qn_start=1.75 qn_end=2.0 type=tom_1 reaper_id=7
+id=8 qn_start=2.0 qn_end=2.25 type=tom_1 reaper_id=8
+id=9 qn_start=2.25 qn_end=2.5 type=tom_1 reaper_id=9
+id=10 qn_start=2.5 qn_end=2.75 type=tom_1 reaper_id=10
+id=11 qn_start=2.75 qn_end=3.0 type=tom_1 reaper_id=11
+id=12 qn_start=3.0 qn_end=3.25 type=tom_1 reaper_id=12
+id=13 qn_start=3.25 qn_end=3.5 type=tom_1 reaper_id=13
+id=14 qn_start=3.5 qn_end=3.75 type=tom_1 reaper_id=14
